@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#111e22" />
+    <meta
+      name="description"
+      content="Explore a procedural rotating space habitat. Walk, fly, and discover Coriolis physics with live projectile trajectories."
+    />
+    <title>Torus — A rotating world</title>
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23111e22'/%3E%3Cellipse cx='32' cy='32' rx='23' ry='12' fill='none' stroke='%23d8efac' stroke-width='6' transform='rotate(-30 32 32)'/%3E%3Ccircle cx='32' cy='32' r='4' fill='%23d8efac'/%3E%3C/svg%3E"
+    />
+  </head>
+  <body>
+    <canvas
+      id="world"
+      aria-label="Interactive three-dimensional rotating habitat"
+    ></canvas>
+    <header class="masthead">
+      <a class="wordmark" href="./" aria-label="Torus home"
+        ><svg viewBox="0 0 40 28" aria-hidden="true">
+          <ellipse
+            cx="20"
+            cy="14"
+            rx="17"
+            ry="8"
+            transform="rotate(-24 20 14)"
+          />
+          <circle cx="20" cy="14" r="2" />
+        </svg>
+        TORUS<span>FIELD LAB / 001</span></a
+      >
+      <div class="header-right">
+        <span class="live-dot"></span><span>PROCEDURAL HABITAT</span
+        ><button
+          id="help-button"
+          class="text-button"
+          aria-label="Show controls"
+        >
+          ? <span>Controls</span>
+        </button>
+      </div>
+    </header>
+    <main id="intro" class="intro">
+      <p class="eyebrow">A SMALL WORLD. AN UNFAMILIAR GRAVITY.</p>
+      <h1>Meet your<br />new <em>horizon.</em></h1>
+      <p class="intro-copy">
+        A living ring suspended in space. Take a walk, leave the ground, and see
+        what happens when your world keeps turning.
+      </p>
+      <button id="enter-button" class="primary-button">
+        Step inside <span>↗</span>
+      </button>
+      <button id="tour-button" class="secondary-button">
+        Explore from orbit <span>↗</span>
+      </button>
+      <div class="intro-facts">
+        <div>
+          <strong>420 <small>m</small></strong
+          ><span>FLOOR DIAMETER</span>
+        </div>
+        <div>
+          <strong>2.06 <small>rpm</small></strong
+          ><span>ONE EARTH GRAVITY</span>
+        </div>
+        <div>
+          <strong>100<small>%</small></strong
+          ><span>MADE OF MATH</span>
+        </div>
+      </div>
+      <p class="desktop-note">DESKTOP EXPLORER · KEYBOARD + MOUSE · WEBGL 2</p>
+    </main>
+    <div id="scene-caption" class="scene-caption">
+      <span class="caption-line"></span>
+      <div>
+        <strong>STANFORD TORUS</strong
+        ><span>Experimental scale model · Sol sector</span>
+      </div>
+    </div>
+    <aside id="flight-panel" class="flight-panel" hidden>
+      <div class="panel-top">
+        <span class="eyebrow">EXPLORER SYSTEMS</span
+        ><button id="exit-button" class="text-button" title="Return to title">
+          ↗ Orbit
+        </button>
+      </div>
+      <div class="mode-switch" role="group" aria-label="Movement mode">
+        <button id="walk-button" class="selected">Walk <kbd>1</kbd></button
+        ><button id="fly-button">Fly <kbd>2</kbd></button>
+      </div>
+      <p id="mode-description">Follow the promenade. Space to jump.</p>
+      <div class="divider"></div>
+      <label class="toggle-row" for="ghost-toggle"
+        ><span>Ghost trajectory</span
+        ><input id="ghost-toggle" type="checkbox" checked
+      /></label>
+      <label class="range-label" for="launch-speed"
+        ><span>Launch speed</span
+        ><strong><span id="launch-value">28</span> m/s</strong></label
+      >
+      <input
+        id="launch-speed"
+        type="range"
+        min="8"
+        max="90"
+        value="28"
+        step="1"
+      />
+      <div class="trajectory-legend">
+        <i></i> PREDICTED PATH <span id="flight-time">—</span>
+      </div>
+      <button id="launch-button" class="launch-button">
+        Launch probe <span>↗ <kbd>CLICK</kbd></span>
+      </button>
+      <div class="physics-note">
+        <span>↻</span>
+        <p>Nothing pulls you down.<br />The habitat turns beneath your feet.</p>
+      </div>
+    </aside>
+    <div id="crosshair" class="crosshair" hidden>
+      <span></span><span></span>
+    </div>
+    <div id="resume-hint" class="resume-hint" hidden>
+      <strong>Ready when you are.</strong
+      ><span>Click the world to capture your mouse. Esc releases it.</span
+      ><button id="resume-button">Resume exploration ↗</button
+      ><span id="drag-hint" hidden
+        >Mouse capture unavailable. Drag on the world to look around.</span
+      >
+    </div>
+    <footer class="telemetry">
+      <div class="location">
+        <span class="live-dot"></span>
+        <div>
+          <strong id="district">THE COMMONS</strong
+          ><span id="location-detail"
+            >HABITAT 01 / ROTATING REFERENCE FRAME</span
+          >
+        </div>
+      </div>
+      <div class="metric">
+        <span>LOCAL GRAVITY</span
+        ><strong id="gravity-value">1.00 <small>g</small></strong>
+      </div>
+      <div class="metric">
+        <span>ALTITUDE</span
+        ><strong id="altitude-value">0.0 <small>m</small></strong>
+      </div>
+      <div class="metric">
+        <span>RELATIVE SPEED</span
+        ><strong id="speed-value">0.0 <small>m/s</small></strong>
+      </div>
+      <div class="ring-map">
+        <svg viewBox="0 0 80 80" aria-hidden="true">
+          <circle cx="40" cy="40" r="29" />
+          <path d="M40 4v12M40 64v12M4 40h12M64 40h12" />
+          <circle
+            id="map-position"
+            class="map-dot"
+            cx="69"
+            cy="40"
+            r="4"
+          /></svg
+        ><span>YOU ARE HERE</span>
+      </div>
+    </footer>
+    <div id="key-guide" class="key-guide" hidden>
+      <span><kbd>W A S D</kbd> move</span
+      ><span><kbd>SPACE</kbd> jump / rise</span
+      ><span><kbd>SHIFT</kbd> boost</span
+      ><span><kbd>Q</kbd> descend in flight</span><span><kbd>R</kbd> reset</span
+      ><span><kbd>ESC</kbd> release mouse</span>
+    </div>
+    <dialog id="help-dialog">
+      <button id="close-help" class="dialog-close" aria-label="Close controls">
+        ×
+      </button>
+      <p class="eyebrow">A DIFFERENT KIND OF PLAYGROUND</p>
+      <h2>Find your feet.<br />Then leave them.</h2>
+      <dl>
+        <dt>W A S D / Arrow keys</dt>
+        <dd>Move around the habitat</dd>
+        <dt>Mouse / drag</dt>
+        <dd>Look around</dd>
+        <dt>Space</dt>
+        <dd>Jump, or rise in flight</dd>
+        <dt>Shift / Q</dt>
+        <dd>Move faster / descend in flight</dd>
+        <dt>1 / 2</dt>
+        <dd>Walking / powered flight</dd>
+        <dt>Click / launch button</dt>
+        <dd>Launch a probe along the ghost path</dd>
+        <dt>R / Esc</dt>
+        <dd>Reset position / release mouse</dd>
+        <dt>Orbit view</dt>
+        <dd>Drag to rotate, scroll to zoom</dd>
+      </dl>
+      <p>
+        The dotted line predicts a probe’s path in the rotating frame. Watch it
+        bend: the Coriolis effect is geometry in motion.
+      </p>
+      <p class="help-small">
+        A compact, stylized Stanford torus. Buildings are scenery; the floor and
+        side rails provide collision. Flight uses a powered, stabilized
+        thruster.
+      </p>
+    </dialog>
+    <div id="notice" role="status" aria-live="polite"></div>
+    <div id="fatal-error" hidden>
+      <h1>A window into space needs WebGL 2.</h1>
+      <p>Enable hardware acceleration or try a recent desktop browser.</p>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
