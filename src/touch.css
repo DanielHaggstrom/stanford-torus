@@ -1,0 +1,681 @@
+/* Touch controls are opt-in. Mouse and keyboard layouts keep their existing rules. */
+.touch-only,
+.touch-help,
+#touch-toolbar,
+#touch-controls {
+  display: none;
+}
+
+.help-preferences {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin: 22px 0;
+}
+.help-preferences label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--lime);
+}
+.help-preferences select {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #15292d;
+  color: #eef1e6;
+  font: inherit;
+}
+
+html.touch-input {
+  --touch-left: max(14px, env(safe-area-inset-left));
+  --touch-right: max(14px, env(safe-area-inset-right));
+  --touch-top: env(safe-area-inset-top, 0px);
+  --touch-bottom: max(12px, env(safe-area-inset-bottom));
+  overscroll-behavior: none;
+}
+html.touch-input body {
+  width: 100%;
+  min-height: 100svh;
+  overscroll-behavior: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+html.touch-input button,
+html.touch-input select {
+  min-height: 44px;
+}
+html.touch-input button {
+  touch-action: manipulation;
+}
+html.touch-input .desktop-only,
+html.touch-input .desktop-help,
+html.touch-input #key-guide,
+html.touch-input .scene-caption,
+html.touch-input .view-shortcut {
+  display: none !important;
+}
+html.touch-input .touch-only {
+  display: inline;
+}
+html.touch-input .touch-help {
+  display: grid;
+}
+html.touch-input .masthead,
+html.touch-input .playing .masthead {
+  height: calc(58px + var(--touch-top));
+  padding: var(--touch-top) var(--touch-right) 0 var(--touch-left);
+}
+html.touch-input .wordmark,
+html.touch-input .playing .wordmark {
+  min-height: 44px;
+  gap: 7px;
+  font-size: 16px;
+  letter-spacing: 2px;
+}
+html.touch-input .wordmark svg {
+  width: 29px;
+}
+html.touch-input .wordmark > span,
+html.touch-input .header-right > span {
+  display: none;
+}
+html.touch-input .header-right {
+  gap: 5px;
+}
+html.touch-input .header-right .time-control {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  gap: 5px;
+}
+html.touch-input .time-control label {
+  display: none;
+}
+html.touch-input .time-control select {
+  min-width: 58px;
+  padding: 8px;
+  font-size: 14px;
+}
+html.touch-input .header-right .text-button {
+  min-width: 44px;
+  margin: 0;
+  padding: 8px;
+  font-size: 18px;
+}
+html.touch-input .header-right .text-button span {
+  display: none;
+}
+html.touch-input .orbital-readout,
+html.touch-input .playing .orbital-readout {
+  top: calc(64px + var(--touch-top));
+  right: var(--touch-right);
+  gap: 3px;
+  max-width: 135px;
+  font-size: 6px;
+  letter-spacing: 0.6px;
+}
+html.touch-input .orbital-readout strong {
+  font-size: 10px;
+}
+html.touch-input .intro {
+  top: calc(75px + var(--touch-top));
+  bottom: calc(82px + var(--touch-bottom));
+  left: max(6%, var(--touch-left));
+  width: min(390px, calc(100% - var(--touch-left) - var(--touch-right)));
+  overflow: auto;
+  padding: 0 10px 16px 0;
+  scrollbar-width: thin;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+html.touch-input .intro h1 {
+  font-size: clamp(39px, 7vw, 65px);
+  margin: 15px 0;
+  letter-spacing: -2px;
+}
+html.touch-input .intro-copy {
+  max-width: 300px;
+  font-size: 13px;
+  line-height: 1.65;
+  margin: 15px 0;
+}
+html.touch-input .intro .primary-button,
+html.touch-input .intro .secondary-button {
+  width: min(285px, 100%);
+  min-height: 48px;
+  padding: 12px 17px;
+  font-size: 13px;
+}
+html.touch-input .intro .secondary-button kbd {
+  display: none;
+}
+html.touch-input .intro-facts {
+  display: flex;
+  margin-top: 22px;
+  gap: 22px;
+}
+html.touch-input .intro-facts strong {
+  font-size: 19px;
+}
+html.touch-input .intro-facts div {
+  gap: 7px;
+}
+html.touch-input .intro-facts span {
+  font-size: 6px;
+}
+html.touch-input .desktop-note {
+  display: block;
+  margin: 20px 0 0;
+  max-width: 300px;
+  font-size: 7px;
+  line-height: 1.7;
+  letter-spacing: 0.7px;
+}
+html.touch-input .telemetry,
+html.touch-input .playing .telemetry {
+  top: auto;
+  bottom: calc(8px + var(--touch-bottom));
+  left: 50%;
+  right: auto;
+  width: min(320px, calc(100% - var(--touch-left) - var(--touch-right)));
+  height: 49px;
+  padding: 7px 12px;
+  transform: translateX(-50%);
+  gap: 16px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: #102027bc;
+  backdrop-filter: blur(8px);
+  pointer-events: none;
+}
+html.touch-input .telemetry .location,
+html.touch-input .telemetry .ring-map {
+  display: none;
+}
+html.touch-input .telemetry .metric {
+  flex: 1;
+  gap: 5px;
+}
+html.touch-input .telemetry .metric > span {
+  font-size: 6px;
+  letter-spacing: 0.5px;
+}
+html.touch-input .telemetry .metric strong {
+  font-size: 16px;
+}
+html.touch-input .telemetry .metric small {
+  margin-left: 2px;
+  font-size: 9px;
+}
+html.touch-input .playing .telemetry {
+  bottom: calc(202px + var(--touch-bottom));
+}
+html.touch-input .playing.looking-down .telemetry {
+  opacity: 0.65;
+}
+html.touch-input #touch-toolbar {
+  display: flex;
+  position: fixed;
+  top: calc(61px + var(--touch-top));
+  left: var(--touch-left);
+  z-index: 5;
+  max-width: calc(100% - var(--touch-left) - var(--touch-right));
+  gap: 6px;
+  pointer-events: none;
+}
+html.touch-input #touch-toolbar button {
+  display: none;
+  padding: 9px 12px;
+  min-width: 48px;
+  border: 1px solid #d8efac42;
+  border-radius: 7px;
+  background: #102027ba;
+  backdrop-filter: blur(8px);
+  font-size: 11px;
+  line-height: 1.2;
+  pointer-events: auto;
+}
+html.touch-input .playing #touch-toolbar button:not(#touch-return):not(#touch-map-toggle),
+html.touch-input .orbiting #touch-return,
+html.touch-input .orbiting #touch-map-toggle {
+  display: block;
+}
+html.touch-input #touch-toolbar button[aria-pressed="true"],
+html.touch-input #touch-toolbar button[aria-expanded="true"] {
+  color: var(--lime);
+  border-color: #d8efac99;
+  background: #283c30e0;
+}
+html.touch-input #touch-controls {
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+html.touch-input #touch-controls,
+html.touch-input #touch-toolbar {
+  -webkit-touch-callout: none;
+}
+html.touch-input .touch-look-hint {
+  position: absolute;
+  left: 50%;
+  bottom: calc(183px + var(--touch-bottom));
+  transform: translateX(-50%);
+  margin: 0;
+  color: #d3ddce;
+  font-size: 9px;
+  white-space: nowrap;
+  text-shadow: 0 1px 4px #071217;
+}
+html.touch-input .touch-movement {
+  position: absolute;
+  left: var(--touch-left);
+  bottom: var(--touch-bottom);
+  width: 126px;
+  height: 126px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+html.touch-input #touch-stick {
+  position: relative;
+  width: 112px;
+  height: 112px;
+  flex-shrink: 0;
+  border: 1px solid #e2efd84d;
+  border-radius: 50%;
+  background: #1020274d;
+  box-shadow: inset 0 0 25px #08161b33;
+  pointer-events: auto;
+  touch-action: none;
+}
+html.touch-input #touch-stick::before,
+html.touch-input #touch-stick::after {
+  content: "";
+  position: absolute;
+  background: #e2efd81f;
+  pointer-events: none;
+}
+html.touch-input #touch-stick::before {
+  width: 1px;
+  height: 86px;
+  top: 12px;
+  left: 55px;
+}
+html.touch-input #touch-stick::after {
+  height: 1px;
+  width: 86px;
+  left: 12px;
+  top: 55px;
+}
+html.touch-input #touch-stick-knob {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  transform: translate(-50%, -50%);
+  border: 1px solid #d9efaaad;
+  border-radius: 50%;
+  background: #b5d88a40;
+  box-shadow: 0 1px 10px #07121733;
+  pointer-events: none;
+}
+html.touch-input .touch-stick-label {
+  margin-top: 7px;
+  color: #c8d2c1;
+  font-size: 7px;
+  letter-spacing: 1.4px;
+}
+html.touch-input #touch-boost {
+  position: absolute;
+  bottom: 134px;
+  left: 27px;
+  width: 72px;
+  pointer-events: auto;
+}
+html.touch-input .touch-actions {
+  position: absolute;
+  right: var(--touch-right);
+  bottom: calc(13px + var(--touch-bottom));
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+html.touch-input .touch-vertical {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+html.touch-input .touch-actions button,
+html.touch-input #touch-boost {
+  border: 1px solid #e2efd85c;
+  border-radius: 12px;
+  background: #10202791;
+  color: #eff6e7;
+  font-size: 12px;
+  pointer-events: auto;
+  touch-action: none;
+}
+html.touch-input #touch-jump,
+html.touch-input #touch-descend {
+  width: 60px;
+  min-height: 50px;
+}
+html.touch-input #touch-fire {
+  width: 88px;
+  height: 88px;
+  padding: 14px 10px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border-radius: 50%;
+  border-color: #d9efaaa6;
+  background: #233b278c;
+}
+html.touch-input #touch-fire > span {
+  font-size: 16px;
+  color: var(--lime);
+}
+html.touch-input #touch-shot-speed {
+  color: #d3ddce;
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
+html.touch-input #touch-charge-meter {
+  appearance: none;
+  width: 49px;
+  height: 3px;
+  border: 0;
+  border-radius: 3px;
+  overflow: hidden;
+  background: #d9efaa30;
+}
+html.touch-input #touch-charge-meter::-webkit-progress-bar {
+  background: #d9efaa30;
+}
+html.touch-input #touch-charge-meter::-webkit-progress-value {
+  background: var(--lime);
+}
+html.touch-input #touch-charge-meter::-moz-progress-bar {
+  background: var(--lime);
+}
+html.touch-input #touch-controls button:active,
+html.touch-input #touch-controls button.is-held,
+html.touch-input #touch-controls button.charging {
+  background: #accd7359;
+  border-color: var(--lime);
+}
+html.touch-input .flight-panel {
+  top: calc(114px + var(--touch-top));
+  left: var(--touch-left);
+  width: min(290px, calc(100% - var(--touch-left) - var(--touch-right)));
+  max-height: calc(100dvh - 130px - var(--touch-top) - var(--touch-bottom));
+  overflow-y: auto;
+  padding: 18px;
+  z-index: 6;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
+}
+html.touch-input:not(.systems-open) .flight-panel {
+  display: none !important;
+}
+html.touch-input .flight-panel .panel-top {
+  margin-bottom: 14px;
+}
+html.touch-input .flight-panel .eyebrow {
+  font-size: 9px;
+}
+html.touch-input .flight-panel p,
+html.touch-input .flight-panel .toggle-row,
+html.touch-input .mode-switch button {
+  font-size: 12px;
+}
+html.touch-input .flight-panel .divider {
+  display: block;
+  margin-bottom: 17px;
+}
+html.touch-input .flight-panel .toggle-row {
+  min-height: 44px;
+  margin-bottom: 10px;
+}
+html.touch-input .flight-panel input[type="checkbox"] {
+  width: 40px;
+  height: 24px;
+  flex-shrink: 0;
+}
+html.touch-input .flight-panel input[type="checkbox"]::before {
+  width: 16px;
+  height: 16px;
+  top: 4px;
+  left: 4px;
+}
+html.touch-input .flight-panel input:checked::before {
+  transform: translateX(16px);
+}
+html.touch-input .flight-panel .trajectory-legend,
+html.touch-input .flight-panel .trail-legend,
+html.touch-input .flight-panel .charge-status {
+  font-size: 8px;
+}
+html.touch-input .flight-panel .probe-tools {
+  font-size: 10px;
+}
+html.touch-input .flight-panel .probe-tools button {
+  font-size: 12px;
+  min-width: 60px;
+}
+html.touch-input .touch-reset {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: transparent;
+  color: #d5dece;
+  font-size: 12px;
+}
+html.touch-input .flight-panel kbd {
+  display: none;
+}
+html.touch-input .resume-hint {
+  left: 50%;
+  width: min(340px, calc(100% - 36px));
+  max-height: calc(100dvh - 130px - var(--touch-top) - var(--touch-bottom));
+  overflow: auto;
+  padding: 24px;
+  z-index: 6;
+}
+html.touch-input .resume-hint button {
+  font-size: 13px;
+}
+html.touch-input .orbit-view-hint {
+  top: calc(116px + var(--touch-top));
+  left: var(--touch-left);
+  padding: 10px 13px;
+  max-width: 220px;
+  gap: 5px;
+  background: #1020278c;
+  pointer-events: none;
+}
+html.touch-input .orbit-view-hint > span {
+  display: none;
+}
+html.touch-input .orbit-view-hint .eyebrow {
+  font-size: 7px;
+}
+html.touch-input .orbit-view-hint small {
+  font-size: 10px;
+}
+html.touch-input #orbit-map-panel {
+  top: calc(116px + var(--touch-top));
+  bottom: auto;
+  right: var(--touch-right);
+  width: min(300px, calc(100% - var(--touch-left) - var(--touch-right)));
+  max-height: calc(100dvh - 135px - var(--touch-top) - var(--touch-bottom));
+  padding: 15px;
+  z-index: 6;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
+}
+html.touch-input.map-collapsed #orbit-map-panel {
+  display: none !important;
+}
+html.touch-input #orbit-map-panel .orbit-map-chart {
+  width: min(100%, 230px);
+  margin: 3px auto 0;
+}
+html.touch-input .orbit-map-range {
+  height: 44px;
+  margin: 0;
+  touch-action: pan-x;
+}
+html.touch-input .orbit-map-skip {
+  min-height: 48px;
+  font-size: 12px;
+}
+html.touch-input .orbit-map-note,
+html.touch-input .orbit-map-instructions {
+  font-size: 10px;
+}
+html.touch-input dialog {
+  width: min(510px, calc(100% - var(--touch-left) - var(--touch-right)));
+  max-width: none;
+  max-height: calc(100dvh - 24px - var(--touch-top) - var(--touch-bottom));
+  margin: auto;
+  padding: 28px 22px;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
+  -webkit-user-select: text;
+  user-select: text;
+}
+html.touch-input dialog h2 {
+  margin-top: 16px;
+  font-size: 29px;
+}
+html.touch-input dialog .dialog-close {
+  top: 5px;
+  right: 5px;
+  min-width: 44px;
+  min-height: 44px;
+}
+html.touch-input dialog dl {
+  grid-template-columns: 1fr 1.8fr;
+  gap: 16px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+html.touch-input #notice {
+  bottom: calc(263px + var(--touch-bottom));
+  width: max-content;
+  max-width: calc(100% - var(--touch-left) - var(--touch-right));
+  padding: 10px 15px;
+  font-size: 11px;
+  text-align: center;
+}
+html.touch-input #fatal-error {
+  padding: calc(60px + var(--touch-top)) max(7%, var(--touch-left));
+  overflow: auto;
+}
+
+@media (max-width: 600px) {
+  html.touch-input .playing .orbital-readout,
+  html.touch-input .orbiting .orbital-readout {
+    top: calc(116px + var(--touch-top));
+  }
+  html.touch-input .orbiting .orbit-view-hint {
+    top: auto;
+    bottom: calc(75px + var(--touch-bottom));
+    max-width: calc(100% - var(--touch-left) - var(--touch-right));
+  }
+  html.touch-input #touch-toolbar button {
+    padding-inline: 11px;
+  }
+  html.touch-input #touch-boost {
+    bottom: 130px;
+  }
+  html.touch-input .help-preferences {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 600px) {
+  html.touch-input .intro {
+    top: calc(62px + var(--touch-top));
+    bottom: calc(10px + var(--touch-bottom));
+    width: min(340px, 48%);
+  }
+  html.touch-input .intro .eyebrow {
+    font-size: 7px;
+    letter-spacing: 1.3px;
+  }
+  html.touch-input .intro h1 {
+    font-size: 40px;
+    margin: 9px 0;
+  }
+  html.touch-input .intro-copy {
+    font-size: 11px;
+    line-height: 1.55;
+    margin: 10px 0;
+  }
+  html.touch-input .intro .primary-button,
+  html.touch-input .intro .secondary-button {
+    width: 250px;
+    min-height: 44px;
+    padding-block: 9px;
+  }
+  html.touch-input .intro-facts {
+    display: none;
+  }
+  html.touch-input .desktop-note {
+    margin-top: 12px;
+  }
+  html.touch-input body:not(.playing) .telemetry {
+    left: auto;
+    right: var(--touch-right);
+    width: min(320px, 42%);
+    transform: none;
+  }
+  html.touch-input .playing .telemetry {
+    bottom: calc(10px + var(--touch-bottom));
+    width: min(290px, calc(100% - 360px - var(--touch-left) - var(--touch-right)));
+    min-width: 220px;
+  }
+  html.touch-input .touch-look-hint {
+    bottom: calc(67px + var(--touch-bottom));
+  }
+  html.touch-input .touch-movement {
+    height: 112px;
+  }
+  html.touch-input .touch-stick-label {
+    display: none;
+  }
+  html.touch-input #touch-boost {
+    bottom: 120px;
+  }
+  html.touch-input .touch-actions {
+    bottom: var(--touch-bottom);
+  }
+  html.touch-input .flight-panel,
+  html.touch-input #orbit-map-panel {
+    top: calc(110px + var(--touch-top));
+    max-height: calc(100dvh - 124px - var(--touch-top) - var(--touch-bottom));
+  }
+  html.touch-input .orbit-view-hint {
+    top: calc(116px + var(--touch-top));
+  }
+  html.touch-input #notice {
+    bottom: calc(89px + var(--touch-bottom));
+    max-width: 42%;
+  }
+}

@@ -7,11 +7,21 @@ probes to see how trajectories curve in a rotating reference frame.
 [Build checks](https://github.com/DanielHaggstrom/stanford-torus/actions) ·
 [MIT license](LICENSE)
 
-**Version 0.4.2** · Keyboard and mouse · WebGL 2
+**Version 0.5.0** · Keyboard, mouse, or touch · WebGL 2
 
 ## Playing
 
 Choose **Step inside** to start. Open **Controls** for the in-game reference.
+
+On phones and tablets, use the left stick to move and drag the world to look.
+Tap Jump or Fire; hold Fire to charge. Fly enables Rise and Down. Systems contains
+probe controls and Reset; Orbit opens the exterior view and its collapsible map.
+Landscape gives more room, and portrait also works.
+
+Touch controls appear automatically for a primary touch pointer. Touchscreen
+laptops keep keyboard and mouse controls by default when the primary pointer is
+a mouse. You can select either layout under **Controls**. Automatic graphics uses
+a lighter rendering budget with touch; choose Full or Balanced there to override it.
 
 | Controls                                | Action                                              |
 | --------------------------------------- | --------------------------------------------------- |
@@ -59,7 +69,7 @@ speed and time skips. A cart hitting you on the track pushes you to the side.
 This is a stylized prototype. The deck is a cylindrical ring rather than a full
 toroidal surface. Buildings and residents are scenery without collision. The sky
 uses approximate circular orbits and a fixed opening alignment, not the current
-date. There is no multiplayer, saved progress, touch, or gamepad support yet.
+date. There is no multiplayer, saved progress, or gamepad support yet.
 
 ## Development
 
@@ -80,12 +90,13 @@ texture packs, external fonts, or backend are required. The build is a static si
 
 See the [orbital model](docs/orbit.md) for assumptions and equations, and the
 [deployment guide](docs/deployment.md) for hosting and rollback.
+The [touch controls guide](docs/mobile.md) covers mobile input and testing.
 
 ## Roadmap
 
 - Add building collision, terrain variation, and a full toroidal deck.
 - Add scale and spin presets and more trajectory experiments.
 - Improve accessibility, configurable controls, and performance settings.
-- Explore touch, gamepad support, and eventually shared exploration.
+- Expand mobile device testing, explore gamepads, and eventually shared exploration.
 
 These are directions for future work, with no fixed release schedule.

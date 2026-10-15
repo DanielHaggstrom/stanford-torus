@@ -38,7 +38,11 @@ import {
   tramSurfaceVelocity,
 } from "./tram-physics";
 import type { TramSupport } from "./tram-physics";
+import { buildTouchControls } from "./touch-controls";
+import { getRenderBudget } from "./render-quality";
+import type { GraphicsQuality } from "./render-quality";
 import "./style.css";
+import "./touch.css";
 
 const element = <T extends HTMLElement = HTMLElement>(id: string) =>
   document.getElementById(id) as T;
@@ -55,7 +59,12 @@ try {
   element("fatal-error").hidden = false;
   throw error;
 }
-renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
+let renderBudget = getRenderBudget(
+  "auto",
+  matchMedia("(pointer: coarse)").matches,
+  devicePixelRatio,
+);
+renderer.setPixelRatio(renderBudget.pixelRatio);
 renderer.setSize(innerWidth, innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -123,13 +132,15 @@ const velocity = new THREE.Vector3();
 let dragLooking = false;
 let pointerUnavailable = false;
 let fallbackResumed = false;
+let touchResumed = false;
 let lastShot = -Infinity;
 let elapsed = 0;
 let simulationRate = 1;
 const TIME_RATES = [1, 5, 10];
 const MAX_PROBES = 5;
 let motionRamp = 0;
-let chargeSource: "mouse" | "button" | "keyboard" | null = null;
+let chargeSource: "mouse" | "button" | "keyboard" | "touch" | null = null;
+let chargePointerId: number | null = null;
 let chargeStartedAt = 0;
 let recoil = 0;
 let fixedAccumulator = 0;
@@ -225,6 +236,42 @@ interface Probe {
 }
 const probes: Probe[] = [];
 const orbitMap = buildOrbitMap(element("orbit-map-panel"), skipToOrbitPhase);
+const touch = buildTouchControls({
+  look(dx, dy) {
+    if (!explorationActive()) return;
+    yaw += dx * 0.004;
+    pitch = THREE.MathUtils.clamp(pitch - dy * 0.004, -1.48, 1.48);
+  },
+  jump: jumpPlayer,
+  beginCharge: () => beginCharge("touch"),
+  releaseCharge() {
+    if (chargeSource === "touch") releaseCharge();
+  },
+  cancelCharge() {
+    if (chargeSource === "touch") cancelCharge();
+  },
+  toggleFlight() {
+    if (view === "explore") setFlight(!flight);
+  },
+  toggleOrbit: toggleOrbitView,
+  pause() {
+    if (explorationActive()) pauseExploration();
+    else void captureMouse();
+  },
+  enabledChanged() {
+    pauseExploration();
+    applyRenderBudget();
+    element("mode-description").textContent = movementDescription();
+  },
+});
+
+function applyRenderBudget() {
+  const quality = element<HTMLSelectElement>("graphics-quality")
+    .value as GraphicsQuality;
+  renderBudget = getRenderBudget(quality, touch.enabled, devicePixelRatio);
+  renderer.setPixelRatio(renderBudget.pixelRatio);
+  renderer.setSize(innerWidth, innerHeight);
+}
 
 function notice(message: string) {
   const box = element("notice");
@@ -268,8 +315,10 @@ function explorationActive() {
   return (
     view === "explore" &&
     !help.open &&
-    (document.pointerLockElement === canvas ||
-      (pointerUnavailable && fallbackResumed))
+    (touch.enabled
+      ? touchResumed
+      : document.pointerLockElement === canvas ||
+        (pointerUnavailable && fallbackResumed))
   );
 }
 
@@ -300,17 +349,26 @@ function updateLauncherUI() {
   element("launch-button").title = explorationActive()
     ? "Hold to charge; release to launch"
     : "Resume exploration to use the launcher";
+  element("touch-shot-speed").textContent = `${speed} m/s`;
+  element<HTMLProgressElement>("touch-charge-meter").value =
+    chargeFraction(heldSeconds);
+  element("touch-fire").classList.toggle("charging", chargeSource === "touch");
 }
 
 function cancelCharge() {
   chargeSource = null;
+  chargePointerId = null;
   chargeStartedAt = 0;
   updateLauncherUI();
 }
 
-function beginCharge(source: "mouse" | "button" | "keyboard") {
+function beginCharge(
+  source: "mouse" | "button" | "keyboard" | "touch",
+  pointerId: number | null = null,
+) {
   if (!explorationActive() || chargeSource) return;
   chargeSource = source;
+  chargePointerId = pointerId;
   chargeStartedAt = performance.now();
   updateLauncherUI();
 }
@@ -344,6 +402,7 @@ function stepTimeRate(delta: number) {
 }
 
 function resetPlayer() {
+  touch.reset();
   player = {
     position: { x: FLOOR_RADIUS, y: 0, z: 0 },
     velocity: { x: 0, y: 0, z: 0 },
@@ -358,36 +417,101 @@ function resetPlayer() {
   clearProbes(false);
 }
 
+function movementDescription() {
+  if (flight)
+    return touch.enabled
+      ? "Stabilized thrusters. Hold Rise or Down."
+      : "Stabilized thrusters. Space rises; Q descends.";
+  return touch.enabled
+    ? "Follow the promenade. Tap Jump to leave the ground."
+    : "Follow the promenade. Space to jump.";
+}
+
 function setFlight(enabled: boolean) {
   flight = enabled;
+  touch.setFlight(enabled);
   if (enabled) tramSupport = null;
   element("walk-button").classList.toggle("selected", !flight);
   element("fly-button").classList.toggle("selected", flight);
-  element("mode-description").textContent = flight
-    ? "Stabilized thrusters. Space rises; Q descends."
-    : "Follow the promenade. Space to jump.";
+  element("mode-description").textContent = movementDescription();
   if (view === "explore")
     notice(
       flight
-        ? "Flight enabled · Space to rise, Q to descend"
-        : "Walking enabled · Space to jump",
+        ? touch.enabled
+          ? "Flight enabled · Hold Rise or Down to change height"
+          : "Flight enabled · Space to rise, Q to descend"
+        : touch.enabled
+          ? "Walking enabled · Tap Jump to leave the ground"
+          : "Walking enabled · Space to jump",
     );
 }
 
 function showPause() {
   const resumed =
-    document.pointerLockElement === canvas ||
-    (pointerUnavailable && fallbackResumed);
+    touch.enabled
+      ? touchResumed
+      : document.pointerLockElement === canvas ||
+        (pointerUnavailable && fallbackResumed);
   element("resume-hint").hidden = view !== "explore" || resumed;
   element("crosshair").hidden = view !== "explore" || !resumed;
   if (!resumed) motionRamp = 0;
+  touch.setActive(explorationActive());
+  element("touch-pause").textContent = resumed ? "Pause" : "Resume";
+  element("touch-pause").setAttribute(
+    "aria-label",
+    resumed ? "Pause exploration" : "Resume exploration",
+  );
+  element("orbit-view-hint").querySelector("small")!.textContent = touch.enabled
+    ? "Drag to inspect · Pinch to zoom"
+    : "Drag to inspect · Scroll to zoom";
+  if (touch.enabled) {
+    element("resume-button").textContent = "Resume exploration ↗";
+    element("resume-instructions").textContent =
+      "Use the left stick to move and drag the world to look.";
+    element("drag-hint").hidden = true;
+  } else {
+    element("resume-instructions").textContent =
+      "Click the world to capture your mouse. Esc releases it.";
+    element("resume-button").textContent = pointerUnavailable
+      ? "Continue with drag to look ↗"
+      : "Resume exploration ↗";
+    element("drag-hint").hidden = !pointerUnavailable;
+  }
   updateLauncherUI();
+}
+
+function pauseExploration() {
+  touchResumed = false;
+  fallbackResumed = false;
+  dragLooking = false;
+  keys.clear();
+  motionRamp = 0;
+  touch.reset();
+  cancelCharge();
+  document.exitPointerLock?.();
+  showPause();
+}
+
+function jumpPlayer() {
+  if (!explorationActive() || !grounded || flight) return;
+  basis();
+  player.velocity = velocity
+    .copy(player.velocity)
+    .addScaledVector(up, 8)
+    .clone();
+  grounded = false;
+  tramSupport = null;
 }
 
 async function captureMouse() {
   if (view !== "explore") return;
   element("resume-button").blur();
   canvas.focus({ preventScroll: true });
+  if (touch.enabled) {
+    touchResumed = true;
+    showPause();
+    return;
+  }
   if (pointerUnavailable) {
     fallbackResumed = true;
     element("resume-button").blur();
@@ -407,6 +531,9 @@ async function captureMouse() {
 }
 
 function enterHabitat() {
+  touch.reset();
+  document.documentElement.classList.remove("systems-open");
+  element("touch-systems-toggle").setAttribute("aria-expanded", "false");
   if (view !== "explore") {
     overviewPosition.copy(camera.position);
     overviewUp.copy(camera.up);
@@ -436,6 +563,11 @@ function enterHabitat() {
 }
 
 function orbitView() {
+  touch.setActive(false);
+  touchResumed = false;
+  document.documentElement.classList.remove("systems-open", "map-collapsed");
+  element("touch-systems-toggle").setAttribute("aria-expanded", "false");
+  element("touch-map-toggle").setAttribute("aria-expanded", "true");
   cancelCharge();
   document.exitPointerLock?.();
   keys.clear();
@@ -466,7 +598,11 @@ function orbitView() {
     ghostDotBorder.visible =
     impactMarker.visible =
       false;
-  notice("Inertial orbit view · O returns to the habitat");
+  notice(
+    touch.enabled
+      ? "Inertial orbit view · Use Return to habitat to go back"
+      : "Inertial orbit view · O returns to the habitat",
+  );
 }
 
 function toggleOrbitView() {
@@ -484,6 +620,7 @@ function skipToOrbitPhase(targetPhase: number) {
     ORBIT_START_PHASE,
   );
   cancelCharge();
+  touch.reset();
   keys.clear();
   motionRamp = 0;
   fixedAccumulator = 0;
@@ -638,20 +775,33 @@ function simulatePlayer(dt: number, simTime: number) {
   if (tramSupport && grounded && !flight)
     player = carryTramRider(player, tramSupport, simTime, endTime);
   basis();
-  const moveForward =
+  const moveForward = THREE.MathUtils.clamp(
     Number(keys.has("KeyW") || keys.has("ArrowUp")) -
-    Number(keys.has("KeyS") || keys.has("ArrowDown"));
-  const moveRight =
+      Number(keys.has("KeyS") || keys.has("ArrowDown")) +
+      touch.state.forward,
+    -1,
+    1,
+  );
+  const moveRight = THREE.MathUtils.clamp(
     Number(keys.has("KeyD") || keys.has("ArrowRight")) -
-    Number(keys.has("KeyA") || keys.has("ArrowLeft"));
-  const boost = keys.has("ShiftLeft") || keys.has("ShiftRight");
+      Number(keys.has("KeyA") || keys.has("ArrowLeft")) +
+      touch.state.right,
+    -1,
+    1,
+  );
+  const boost =
+    keys.has("ShiftLeft") || keys.has("ShiftRight") || touch.state.boost;
   const desired = new THREE.Vector3()
     .addScaledVector(flight ? direction : heading, moveForward)
     .addScaledVector(right, moveRight);
   if (flight)
     desired.addScaledVector(
       up,
-      Number(keys.has("Space")) - Number(keys.has("KeyQ")),
+      THREE.MathUtils.clamp(
+        Number(keys.has("Space")) - Number(keys.has("KeyQ")) + touch.state.vertical,
+        -1,
+        1,
+      ),
     );
   if (desired.lengthSq() > 1) desired.normalize();
   motionRamp = updateMotionRamp(motionRamp, desired.lengthSq() > 0, dt);
@@ -740,9 +890,31 @@ element("fly-button").addEventListener("click", () => {
   element("fly-button").blur();
 });
 element("resume-button").addEventListener("click", () => void captureMouse());
+element("touch-return").addEventListener("click", () => {
+  enterHabitat();
+  element("touch-return").blur();
+});
+element("touch-map-toggle").addEventListener("click", () => {
+  const collapsed = document.documentElement.classList.toggle("map-collapsed");
+  element("touch-map-toggle").setAttribute("aria-expanded", String(!collapsed));
+  element("touch-map-toggle").blur();
+});
+element("touch-systems-toggle").addEventListener("click", () => {
+  const opened = document.documentElement.classList.toggle("systems-open");
+  element("touch-systems-toggle").setAttribute("aria-expanded", String(opened));
+  touch.reset();
+  cancelCharge();
+  element("touch-systems-toggle").blur();
+});
+element("graphics-quality").addEventListener("change", applyRenderBudget);
+element("reset-button").addEventListener("click", () => {
+  resetPlayer();
+  notice("Returned to the Commons");
+  element("reset-button").blur();
+});
 element("launch-button").addEventListener("pointerdown", (event) => {
   if (event.button !== 0) return;
-  beginCharge("button");
+  beginCharge("button", event.pointerId);
   element("launch-button").setPointerCapture(event.pointerId);
 });
 element("launch-button").addEventListener("click", (event) => {
@@ -764,8 +936,11 @@ element("help-button").addEventListener("click", () => {
   document.exitPointerLock?.();
   keys.clear();
   help.showModal();
+  if (touch.enabled) touchResumed = false;
+  touch.setActive(false);
 });
 element("close-help").addEventListener("click", () => help.close());
+help.addEventListener("close", showPause);
 document.addEventListener("pointerlockchange", () => {
   cancelCharge();
   keys.clear();
@@ -781,21 +956,26 @@ document.addEventListener("pointerlockerror", () => {
 });
 canvas.addEventListener("click", () => {
   if (view !== "explore") return;
+  if (touch.enabled) return;
   if (document.pointerLockElement !== canvas && !pointerUnavailable)
     void captureMouse();
 });
 canvas.addEventListener("pointerdown", (event) => {
+  if (touch.enabled && event.pointerType !== "mouse") return;
   canvas.focus({ preventScroll: true });
   if (event.button === 0 && document.pointerLockElement === canvas)
-    beginCharge("mouse");
-  if (view === "explore" && pointerUnavailable) {
+    beginCharge("mouse", event.pointerId);
+  if (view === "explore" && (pointerUnavailable || touch.enabled)) {
     dragLooking = true;
     canvas.setPointerCapture(event.pointerId);
     showPause();
   }
 });
-canvas.addEventListener("pointerup", () => {
-  if (pointerUnavailable) {
+canvas.addEventListener("pointerup", (event) => {
+  if (
+    (!touch.enabled || event.pointerType === "mouse") &&
+    (pointerUnavailable || touch.enabled)
+  ) {
     dragLooking = false;
     showPause();
   }
@@ -803,14 +983,17 @@ canvas.addEventListener("pointerup", () => {
 document.addEventListener("pointerup", (event) => {
   if (
     event.button === 0 &&
+    event.pointerId === chargePointerId &&
     (chargeSource === "mouse" || chargeSource === "button")
   )
     releaseCharge();
 });
-document.addEventListener("pointercancel", () => {
-  cancelCharge();
-  dragLooking = false;
-  showPause();
+document.addEventListener("pointercancel", (event) => {
+  if (event.pointerId === chargePointerId) cancelCharge();
+  if (!touch.enabled || event.pointerType === "mouse") {
+    dragLooking = false;
+    showPause();
+  }
 });
 document.addEventListener("mousemove", (event) => {
   if (
@@ -845,19 +1028,11 @@ document.addEventListener("keydown", (event) => {
     return;
   }
   if (view !== "explore") return;
-  if (event.code === "Escape" && pointerUnavailable) {
-    cancelCharge();
-    fallbackResumed = false;
-    dragLooking = false;
-    keys.clear();
-    showPause();
+  if (event.code === "Escape" && (pointerUnavailable || touch.enabled)) {
+    pauseExploration();
     return;
   }
-  if (
-    document.pointerLockElement !== canvas &&
-    !(pointerUnavailable && fallbackResumed)
-  )
-    return;
+  if (!explorationActive()) return;
   if (
     ["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(
       event.code,
@@ -873,15 +1048,7 @@ document.addEventListener("keydown", (event) => {
   }
   if (event.code === "Digit1") setFlight(false);
   if (event.code === "Digit2") setFlight(true);
-  if (event.code === "Space" && grounded && !flight) {
-    basis();
-    player.velocity = velocity
-      .copy(player.velocity)
-      .addScaledVector(up, 8)
-      .clone();
-    grounded = false;
-    tramSupport = null;
-  }
+  if (event.code === "Space") jumpPlayer();
 });
 document.addEventListener("keyup", (event) => {
   keys.delete(event.code);
@@ -891,15 +1058,18 @@ window.addEventListener("blur", () => {
   keys.clear();
   cancelCharge();
   motionRamp = 0;
+  if (touch.enabled) pauseExploration();
 });
 document.addEventListener("visibilitychange", () => {
   keys.clear();
   cancelCharge();
   fixedAccumulator = 0;
   previous = performance.now();
+  if (touch.enabled && document.hidden) pauseExploration();
 });
 window.addEventListener("resize", () => {
-  renderer.setSize(innerWidth, innerHeight);
+  applyRenderBudget();
+  touch.reset();
   camera.aspect = innerWidth / innerHeight;
   camera.fov = view === "explore" ? 72 : overviewFov(camera.aspect);
   if (view === "intro" && innerWidth > 700)
@@ -1016,7 +1186,7 @@ function frame(now: number) {
     }
   }
   ghostRefresh += dt;
-  if (view === "explore" && ghostRefresh > 1 / 24) {
+  if (view === "explore" && ghostRefresh > 1 / renderBudget.ghostHz) {
     refreshGhost();
     ghostRefresh = 0;
   }
@@ -1083,5 +1253,6 @@ if (innerWidth > 700)
     innerWidth,
     innerHeight,
   );
+applyRenderBudget();
 updateLauncherUI();
 requestAnimationFrame(frame);

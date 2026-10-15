@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#111e22" />
     <meta
       name="description"
@@ -81,7 +81,10 @@
           ><span>MADE OF MATH</span>
         </div>
       </div>
-      <p class="desktop-note">DESKTOP EXPLORER · KEYBOARD + MOUSE · WEBGL 2</p>
+      <p class="desktop-note">
+        <span class="desktop-only">DESKTOP EXPLORER · KEYBOARD + MOUSE · WEBGL 2</span>
+        <span class="touch-only">TOUCH EXPLORER · BEST IN LANDSCAPE · WEBGL 2</span>
+      </p>
     </main>
     <div id="scene-caption" class="scene-caption">
       <span class="caption-line"></span>
@@ -130,6 +133,7 @@
         <span>PROBES <strong id="probe-count">0 / 5</strong></span
         ><button id="clear-button">Clear <kbd>C</kbd></button>
       </div>
+      <button id="reset-button" class="touch-only touch-reset">Reset position</button>
     </aside>
     <div id="orbit-view-hint" class="orbit-view-hint" hidden>
       <p class="eyebrow">INERTIAL OBSERVER</p>
@@ -146,7 +150,7 @@
     </div>
     <div id="resume-hint" class="resume-hint" hidden>
       <strong>Ready when you are.</strong
-      ><span>Click the world to capture your mouse. Esc releases it.</span
+      ><span id="resume-instructions">Click the world to capture your mouse. Esc releases it.</span
       ><button id="resume-button">Resume exploration ↗</button
       ><span id="drag-hint" hidden
         >Mouse capture unavailable. Drag on the world to look around.</span
@@ -195,13 +199,73 @@
       ><span><kbd>O</kbd> orbit view</span><span><kbd>R</kbd> reset</span
       ><span><kbd>ESC</kbd> release mouse</span>
     </div>
+    <nav id="touch-toolbar" aria-label="Touch game options">
+      <button id="touch-systems-toggle" aria-controls="flight-panel" aria-expanded="false">Systems</button>
+      <button id="touch-flight" aria-pressed="false">Fly</button>
+      <button id="touch-orbit">Orbit</button>
+      <button id="touch-pause" aria-label="Pause exploration">Pause</button>
+      <button id="touch-return">Return to habitat</button>
+      <button id="touch-map-toggle" aria-controls="orbit-map-panel" aria-expanded="true">Map</button>
+    </nav>
+    <div id="touch-controls" hidden>
+      <p class="touch-look-hint">Drag the sky to look</p>
+      <div class="touch-movement">
+        <button id="touch-boost" aria-label="Hold to move faster">Sprint</button>
+        <div id="touch-stick" role="group" aria-label="Move: drag to walk" tabindex="-1">
+          <span class="touch-stick-axis" aria-hidden="true"></span>
+          <span id="touch-stick-knob" aria-hidden="true"></span>
+        </div>
+        <span class="touch-stick-label" aria-hidden="true">MOVE</span>
+      </div>
+      <div class="touch-actions">
+        <div class="touch-vertical">
+          <button id="touch-descend" hidden aria-label="Hold to descend">Down</button>
+          <button id="touch-jump" aria-label="Jump, or hold to rise in flight">Jump</button>
+        </div>
+        <button id="touch-fire" aria-label="Tap to fire a probe; hold to charge">
+          <span>Fire</span>
+          <small id="touch-shot-speed">28 m/s</small>
+          <progress id="touch-charge-meter" max="1" value="0" aria-label="Launcher charge"></progress>
+        </button>
+      </div>
+    </div>
     <dialog id="help-dialog">
       <button id="close-help" class="dialog-close" aria-label="Close controls">
         ×
       </button>
       <p class="eyebrow">A DIFFERENT KIND OF PLAYGROUND</p>
       <h2>Find your feet.<br />Then leave them.</h2>
-      <dl>
+      <div class="help-preferences">
+        <label for="input-mode">Controls
+          <select id="input-mode">
+            <option value="auto" selected>Automatic</option>
+            <option value="touch">Touch</option>
+            <option value="mouse">Keyboard + mouse</option>
+          </select>
+        </label>
+        <label for="graphics-quality">Graphics
+          <select id="graphics-quality">
+            <option value="auto" selected>Automatic</option>
+            <option value="full">Full</option>
+            <option value="balanced">Balanced</option>
+          </select>
+        </label>
+      </div>
+      <dl class="touch-help">
+        <dt>Move / look</dt>
+        <dd>Drag the left stick to move. Drag the world with your other thumb to look.</dd>
+        <dt>Jump / fly</dt>
+        <dd>Tap Jump to jump. Choose Fly, then hold Rise or Down to change height. Hold Sprint to move faster.</dd>
+        <dt>Fire</dt>
+        <dd>Tap to launch a probe. Hold for 1.2 seconds for full power.</dd>
+        <dt>Systems</dt>
+        <dd>Clear probes or toggle the ghost trajectory.</dd>
+        <dt>Orbit</dt>
+        <dd>Drag to inspect; pinch to zoom. Open Map to select a destination and skip forward.</dd>
+        <dt>Pause</dt>
+        <dd>Pause and resume exploration at any time.</dd>
+      </dl>
+      <dl class="desktop-help">
         <dt>W A S D / Arrow keys</dt>
         <dd>Move around the habitat</dd>
         <dt>Mouse / drag</dt>
@@ -251,7 +315,7 @@
     <div id="notice" role="status" aria-live="polite"></div>
     <div id="fatal-error" hidden>
       <h1>A window into space needs WebGL 2.</h1>
-      <p>Enable hardware acceleration or try a recent desktop browser.</p>
+      <p>Enable hardware acceleration or try a recent browser on your computer, phone or tablet.</p>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
