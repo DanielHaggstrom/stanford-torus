@@ -6,7 +6,7 @@ The world is built from procedural geometry: buildings, trees, farmland, water, 
 
 **Version 0.1.0 · Desktop first · MIT licensed**
 
-Planned public address: [torus.classroom-fox.com](https://torus.classroom-fox.com). **DNS setup is pending; public availability is not yet confirmed.**
+**[Play in your browser →](https://torus.classroom-fox.com)** · [Source](https://github.com/DanielHaggstrom/stanford-torus) · [Build checks](https://github.com/DanielHaggstrom/stanford-torus/actions)
 
 ## Explore
 

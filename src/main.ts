@@ -110,6 +110,41 @@ const ghost = new THREE.Line(
 );
 ghost.frustumCulled = false;
 scene.add(ghost);
+// Screen-sized markers keep the ghost readable against both sky and pale paving.
+const ghostDotGeometry = new THREE.BufferGeometry();
+ghostDotGeometry.setAttribute(
+  "position",
+  new THREE.BufferAttribute(new Float32Array(400 * 3), 3).setUsage(
+    THREE.DynamicDrawUsage,
+  ),
+);
+ghostDotGeometry.setDrawRange(0, 0);
+const ghostDotBorder = new THREE.Points(
+  ghostDotGeometry,
+  new THREE.PointsMaterial({
+    color: "#16352d",
+    size: 5,
+    sizeAttenuation: false,
+    depthTest: false,
+    depthWrite: false,
+    toneMapped: false,
+  }),
+);
+const ghostDots = new THREE.Points(
+  ghostDotGeometry,
+  new THREE.PointsMaterial({
+    color: "#d9ffab",
+    size: 3,
+    sizeAttenuation: false,
+    depthTest: false,
+    depthWrite: false,
+    toneMapped: false,
+  }),
+);
+ghostDotBorder.frustumCulled = ghostDots.frustumCulled = false;
+ghostDotBorder.renderOrder = 2;
+ghostDots.renderOrder = 3;
+scene.add(ghostDotBorder, ghostDots);
 const impactMarker = new THREE.Mesh(
   new THREE.RingGeometry(0.35, 0.52, 32),
   new THREE.MeshBasicMaterial({
@@ -269,7 +304,11 @@ function orbitView() {
   camera.clearViewOffset();
   camera.updateProjectionMatrix();
   controls.target.set(0, 0, 0);
-  ghost.visible = impactMarker.visible = false;
+  ghost.visible =
+    ghostDots.visible =
+    ghostDotBorder.visible =
+    impactMarker.visible =
+      false;
   notice("Orbit view · Drag to rotate, scroll to zoom");
 }
 
@@ -294,6 +333,7 @@ function currentShot(): MotionState {
 
 function refreshGhost() {
   ghost.visible = view === "explore" && ghostToggle.checked;
+  ghostDots.visible = ghostDotBorder.visible = ghost.visible;
   impactMarker.visible = false;
   if (!ghost.visible) return;
   const shot = currentShot();
@@ -305,6 +345,15 @@ function refreshGhost() {
   });
   ghostGeometry.setDrawRange(0, points.length);
   ghostGeometry.getAttribute("position").needsUpdate = true;
+  const dotPositions = ghostDotGeometry.getAttribute(
+    "position",
+  ) as THREE.BufferAttribute;
+  let dotCount = 0;
+  for (let i = 4; i < points.length && dotCount < 400; i += 4) {
+    dotPositions.setXYZ(dotCount++, points[i].x, points[i].y, points[i].z);
+  }
+  dotPositions.needsUpdate = true;
+  ghostDotGeometry.setDrawRange(0, dotCount);
   // Distances use only active vertices; unused buffer entries never reach the GPU.
   ghostDistances[0] = 0;
   for (let i = 1; i < points.length; i++)
