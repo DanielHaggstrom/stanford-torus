@@ -15,13 +15,13 @@
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23111e22'/%3E%3Cellipse cx='32' cy='32' rx='23' ry='12' fill='none' stroke='%23d8efac' stroke-width='6' transform='rotate(-30 32 32)'/%3E%3Ccircle cx='32' cy='32' r='4' fill='%23d8efac'/%3E%3C/svg%3E"
     />
   </head>
-  <body>
+  <body class="playing">
     <canvas
       id="world"
       aria-label="Interactive three-dimensional rotating habitat"
     ></canvas>
     <header class="masthead">
-      <a class="wordmark" href="./" aria-label="Torus home"
+      <a class="wordmark" href="./" aria-label="Restart Torus"
         ><svg viewBox="0 0 40 28" aria-hidden="true">
           <ellipse
             cx="20"
@@ -53,45 +53,6 @@
       <span>EARTH ORBIT · 2,000 KM</span
       ><strong id="simulation-clock">T+00:00:00</strong
       ><span id="sun-state">SUNLIT</span>
-    </div>
-    <main id="intro" class="intro">
-      <p class="eyebrow">A SMALL WORLD. AN UNFAMILIAR GRAVITY.</p>
-      <h1>Meet your<br />new <em>horizon.</em></h1>
-      <p class="intro-copy">
-        A living ring suspended in space. Take a walk, leave the ground, and see
-        what happens when your world keeps turning.
-      </p>
-      <button id="enter-button" class="primary-button">
-        Step inside <span>↗</span>
-      </button>
-      <button id="tour-button" class="secondary-button">
-        Orbit view <span><kbd>O</kbd> ↗</span>
-      </button>
-      <div class="intro-facts">
-        <div>
-          <strong>420 <small>m</small></strong
-          ><span>FLOOR DIAMETER</span>
-        </div>
-        <div>
-          <strong>2.06 <small>rpm</small></strong
-          ><span>ONE EARTH GRAVITY</span>
-        </div>
-        <div>
-          <strong>100<small>%</small></strong
-          ><span>MADE OF MATH</span>
-        </div>
-      </div>
-      <p class="desktop-note">
-        <span class="desktop-only">DESKTOP EXPLORER · KEYBOARD + MOUSE · WEBGL 2</span>
-        <span class="touch-only">TOUCH EXPLORER · BEST IN LANDSCAPE · WEBGL 2</span>
-      </p>
-    </main>
-    <div id="scene-caption" class="scene-caption">
-      <span class="caption-line"></span>
-      <div>
-        <strong>STANFORD TORUS</strong
-        ><span>Experimental scale model · Sol sector</span>
-      </div>
     </div>
     <aside id="flight-panel" class="flight-panel" hidden>
       <div class="panel-top">
@@ -204,6 +165,7 @@
       <button id="touch-flight" aria-pressed="false">Fly</button>
       <button id="touch-orbit">Orbit</button>
       <button id="touch-pause" aria-label="Pause exploration">Pause</button>
+      <button id="touch-fullscreen">Fullscreen</button>
       <button id="touch-return">Return to habitat</button>
       <button id="touch-map-toggle" aria-controls="orbit-map-panel" aria-expanded="true">Map</button>
     </nav>
@@ -313,6 +275,18 @@
       </p>
     </dialog>
     <div id="notice" role="status" aria-live="polite"></div>
+    <div id="landscape-prompt" role="dialog" aria-modal="true" aria-labelledby="landscape-title" hidden>
+      <div class="landscape-card">
+        <svg viewBox="0 0 80 80" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="24" y="10" width="32" height="60" rx="6" transform="rotate(90 40 40)"/>
+          <path d="M15 24A29 29 0 0 1 40 11M33 5l8 6-8 6M65 56A29 29 0 0 1 40 69M47 63l-8 6 8 6"/>
+        </svg>
+        <h2 id="landscape-title">Turn your device sideways</h2>
+        <p id="landscape-message" role="status">Torus plays in landscape. Rotate your phone or tablet to continue.</p>
+        <button id="landscape-button">Use landscape ↗</button>
+        <p class="landscape-small">The game is paused. Automatic rotation works where your browser supports it.</p>
+      </div>
+    </div>
     <div id="fatal-error" hidden>
       <h1>A window into space needs WebGL 2.</h1>
       <p>Enable hardware acceleration or try a recent browser on your computer, phone or tablet.</p>

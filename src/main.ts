@@ -41,6 +41,8 @@ import type { TramSupport } from "./tram-physics";
 import { buildTouchControls } from "./touch-controls";
 import { getRenderBudget } from "./render-quality";
 import type { GraphicsQuality } from "./render-quality";
+import { requestLandscape } from "./landscape";
+import type { LandscapeOrientation } from "./landscape";
 import "./style.css";
 import "./touch.css";
 
@@ -106,9 +108,12 @@ controls.enableDamping = false;
 controls.target.set(0, 0, 0);
 controls.update();
 
-type View = "intro" | "explore" | "orbit";
-let view: View = "intro";
-let hasEnteredHabitat = false;
+type View = "explore" | "orbit";
+let view: View = "explore";
+let hasStartedExploration = false;
+let landscapeBlocked = false;
+let orientationLockedByGame = false;
+const portraitViewport = matchMedia("(orientation: portrait)");
 let flight = false;
 let grounded = true;
 let tramSupport: TramSupport | null = null;
@@ -262,6 +267,7 @@ const touch = buildTouchControls({
     pauseExploration();
     applyRenderBudget();
     element("mode-description").textContent = movementDescription();
+    updateLandscapeState();
   },
 });
 
@@ -271,6 +277,57 @@ function applyRenderBudget() {
   renderBudget = getRenderBudget(quality, touch.enabled, devicePixelRatio);
   renderer.setPixelRatio(renderBudget.pixelRatio);
   renderer.setSize(innerWidth, innerHeight);
+}
+
+function updateLandscapeState() {
+  if (!touch.enabled) releaseLandscapeLock();
+  const blocked = touch.enabled && portraitViewport.matches;
+  if (blocked === landscapeBlocked) return;
+  landscapeBlocked = blocked;
+  document.documentElement.classList.toggle("landscape-blocked", blocked);
+  const prompt = element("landscape-prompt");
+  prompt.hidden = !blocked;
+  for (const node of document.body.children) {
+    if (node instanceof HTMLElement && node !== prompt && node.id !== "fatal-error")
+      node.inert = blocked;
+  }
+  if (blocked) {
+    touch.reset();
+    keys.clear();
+    motionRamp = 0;
+    cancelCharge();
+    if (help.open) help.close();
+    element("landscape-button").focus({ preventScroll: true });
+  }
+  showPause();
+}
+
+async function useLandscape() {
+  const button = element<HTMLButtonElement>("landscape-button");
+  button.disabled = true;
+  const result = await requestLandscape(
+    document,
+    screen.orientation as ScreenOrientation & LandscapeOrientation,
+  );
+  orientationLockedByGame = result.locked;
+  if (!touch.enabled) releaseLandscapeLock();
+  button.disabled = false;
+  if (portraitViewport.matches) {
+    element("landscape-message").textContent = result.locked
+      ? "Switching to landscape. You can also turn your device sideways."
+      : "Turn your device sideways to continue. If it stays upright, turn off your phone’s rotation lock.";
+  }
+  updateLandscapeState();
+}
+
+function releaseLandscapeLock() {
+  if (!orientationLockedByGame) return;
+  try {
+    screen.orientation?.unlock?.();
+  } catch {
+    // A hidden document or a browser without unlock support needs no action.
+  }
+  orientationLockedByGame = false;
 }
 
 function notice(message: string) {
@@ -314,6 +371,7 @@ function updateCamera() {
 function explorationActive() {
   return (
     view === "explore" &&
+    !landscapeBlocked &&
     !help.open &&
     (touch.enabled
       ? touchResumed
@@ -447,12 +505,18 @@ function setFlight(enabled: boolean) {
 }
 
 function showPause() {
-  const resumed =
+  const resumed = !landscapeBlocked && (
     touch.enabled
       ? touchResumed
       : document.pointerLockElement === canvas ||
-        (pointerUnavailable && fallbackResumed);
-  element("resume-hint").hidden = view !== "explore" || resumed;
+        (pointerUnavailable && fallbackResumed));
+  if (resumed) hasStartedExploration = true;
+  const startupHint = !hasStartedExploration && !touch.enabled;
+  element("resume-hint").classList.toggle("startup-hint", startupHint);
+  element("resume-hint").querySelector("strong")!.textContent = startupHint
+    ? "Click to explore"
+    : "Ready when you are.";
+  element("resume-hint").hidden = view !== "explore" || resumed || landscapeBlocked;
   element("crosshair").hidden = view !== "explore" || !resumed;
   if (!resumed) motionRamp = 0;
   touch.setActive(explorationActive());
@@ -470,11 +534,14 @@ function showPause() {
       "Use the left stick to move and drag the world to look.";
     element("drag-hint").hidden = true;
   } else {
-    element("resume-instructions").textContent =
-      "Click the world to capture your mouse. Esc releases it.";
+    element("resume-instructions").textContent = startupHint
+      ? "Click the world to look around. WASD moves; Space jumps."
+      : "Click the world to capture your mouse. Esc releases it.";
     element("resume-button").textContent = pointerUnavailable
       ? "Continue with drag to look ↗"
-      : "Resume exploration ↗";
+      : startupHint
+        ? "Explore ↗"
+        : "Resume exploration ↗";
     element("drag-hint").hidden = !pointerUnavailable;
   }
   updateLauncherUI();
@@ -523,6 +590,7 @@ async function captureMouse() {
     await canvas.requestPointerLock();
   } catch {
     pointerUnavailable = true;
+    fallbackResumed = true;
     element("drag-hint").hidden = false;
     element("resume-button").textContent = "Continue with drag to look ↗";
     notice("Use WASD to move, and drag the world to look.");
@@ -530,7 +598,7 @@ async function captureMouse() {
   }
 }
 
-function enterHabitat() {
+function enterHabitat(capture = true) {
   touch.reset();
   document.documentElement.classList.remove("systems-open");
   element("touch-systems-toggle").setAttribute("aria-expanded", "false");
@@ -543,8 +611,6 @@ function enterHabitat() {
   controls.enabled = false;
   scene.rotation.y = 0;
   document.body.className = "playing";
-  element("intro").hidden = true;
-  element("scene-caption").hidden = true;
   element("flight-panel").hidden = false;
   element("key-guide").hidden = false;
   element("orbit-map-panel").hidden = true;
@@ -552,13 +618,9 @@ function enterHabitat() {
   camera.fov = 72;
   camera.clearViewOffset();
   camera.updateProjectionMatrix();
-  if (!hasEnteredHabitat) {
-    resetPlayer();
-    hasEnteredHabitat = true;
-  } else updateCamera();
-  element("enter-button").blur();
-  element("tour-button").blur();
-  void captureMouse();
+  updateCamera();
+  if (capture) void captureMouse();
+  else touchResumed = touch.enabled;
   showPause();
 }
 
@@ -575,8 +637,6 @@ function orbitView() {
   fallbackResumed = false;
   dragLooking = false;
   document.body.className = "orbiting";
-  element("intro").hidden = true;
-  element("scene-caption").hidden = true;
   element("flight-panel").hidden = true;
   element("resume-hint").hidden = true;
   element("crosshair").hidden = true;
@@ -879,8 +939,6 @@ function simulatePlayer(dt: number, simTime: number) {
   }
 }
 
-element("enter-button").addEventListener("click", enterHabitat);
-element("tour-button").addEventListener("click", orbitView);
 element("walk-button").addEventListener("click", () => {
   setFlight(false);
   element("walk-button").blur();
@@ -907,6 +965,21 @@ element("touch-systems-toggle").addEventListener("click", () => {
   element("touch-systems-toggle").blur();
 });
 element("graphics-quality").addEventListener("change", applyRenderBudget);
+element("landscape-button").addEventListener("click", () => void useLandscape());
+element("touch-fullscreen").addEventListener("click", () => {
+  if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+  else void useLandscape();
+  element("touch-fullscreen").blur();
+});
+document.addEventListener("fullscreenchange", () => {
+  const fullscreen = !!document.fullscreenElement;
+  element("touch-fullscreen").textContent = fullscreen ? "Exit fullscreen" : "Fullscreen";
+  if (!fullscreen && orientationLockedByGame) {
+    releaseLandscapeLock();
+  }
+  updateLandscapeState();
+});
+portraitViewport.addEventListener("change", updateLandscapeState);
 element("reset-button").addEventListener("click", () => {
   resetPlayer();
   notice("Returned to the Commons");
@@ -1072,17 +1145,9 @@ window.addEventListener("resize", () => {
   touch.reset();
   camera.aspect = innerWidth / innerHeight;
   camera.fov = view === "explore" ? 72 : overviewFov(camera.aspect);
-  if (view === "intro" && innerWidth > 700)
-    camera.setViewOffset(
-      innerWidth,
-      innerHeight,
-      -innerWidth * 0.12,
-      0,
-      innerWidth,
-      innerHeight,
-    );
-  else camera.clearViewOffset();
+  camera.clearViewOffset();
   camera.updateProjectionMatrix();
+  updateLandscapeState();
 });
 
 function updateTelemetry() {
@@ -1133,7 +1198,7 @@ function frame(now: number) {
   requestAnimationFrame(frame);
   const dt = Math.min((now - previous) / 1000, 0.1);
   previous = now;
-  if (document.hidden) return;
+  if (document.hidden || landscapeBlocked) return;
   const active = explorationActive();
   const simulationRunning = !help.open && (active || view === "orbit");
   const simulationDelta = simulationRunning ? dt * simulationRate : 0;
@@ -1143,7 +1208,7 @@ function frame(now: number) {
   }
   if (!active && chargeSource) cancelCharge();
   recoil *= Math.exp(-13 * dt);
-  if (active || (view === "orbit" && hasEnteredHabitat && simulationRunning)) {
+  if (active || (view === "orbit" && simulationRunning)) {
     fixedAccumulator += simulationDelta;
     while (fixedAccumulator >= STEP) {
       simulatePlayer(STEP, elapsed - fixedAccumulator);
@@ -1244,15 +1309,9 @@ function frame(now: number) {
     renderer.render(avatar.scene, avatar.camera);
   }
 }
-if (innerWidth > 700)
-  camera.setViewOffset(
-    innerWidth,
-    innerHeight,
-    -innerWidth * 0.12,
-    0,
-    innerWidth,
-    innerHeight,
-  );
 applyRenderBudget();
-updateLauncherUI();
+element("mode-description").textContent = movementDescription();
+resetPlayer();
+enterHabitat(false);
+updateLandscapeState();
 requestAnimationFrame(frame);

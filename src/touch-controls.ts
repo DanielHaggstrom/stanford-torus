@@ -205,7 +205,6 @@ export function buildTouchControls(callbacks: TouchCallbacks) {
   coarse.addEventListener("change", () => updateEnabled());
   updateEnabled(false);
   updateVisibility();
-  queueMicrotask(() => callbacks.enabledChanged(enabled));
 
   return {
     get enabled() { return enabled; },

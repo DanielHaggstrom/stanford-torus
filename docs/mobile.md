@@ -4,6 +4,12 @@ Phones and tablets use the same game and physics as desktop. A primary coarse
 pointer enables the touch layout automatically. A fine primary pointer keeps
 the keyboard and mouse layout, including on touchscreen laptops. The Controls
 dialog lets players choose either layout explicitly.
+The game opens directly inside the habitat, with touch controls active immediately.
+Touch play uses landscape. Portrait shows a rotate-device prompt and pauses
+simulation and input; turning the device sideways removes the prompt. The
+**Use landscape** and **Fullscreen** buttons request fullscreen and then attempt
+an orientation lock. This API has limited browser support, so manual rotation
+remains the fallback. See [MDN's orientation lock documentation](https://developer.mozilla.org/en-US/docs/Web/API/ScreenOrientation/lock).
 
 The left stick provides analog movement; dragging the world changes the view.
 Jump becomes a held Rise button in flight, alongside Down. Fire keeps the same
@@ -31,7 +37,8 @@ budget tests check desktop defaults and explicit overrides.
 
 Browser checks cover 844×390 phone landscape, 390×844 portrait, and 1024×768 tablet
 layouts, touch entry, joystick movement, charged firing, flight, reset, pause,
-the orbit map, and switching back to keyboard and mouse. The test browser uses
+the orbit map, and switching back to keyboard and mouse. Landscape API tests
+cover fullscreen ordering, missing features, and rejected requests. The test browser uses
 the manual Touch setting and pointer input; these checks do not reproduce a
 physical phone's GPU, browser chrome, operating-system gestures, or multitouch
 hardware. Physical iOS and Android checks remain to be done.

@@ -7,16 +7,18 @@ probes to see how trajectories curve in a rotating reference frame.
 [Build checks](https://github.com/DanielHaggstrom/stanford-torus/actions) ·
 [MIT license](LICENSE)
 
-**Version 0.5.0** · Keyboard, mouse, or touch · WebGL 2
+**Version 0.5.1** · Keyboard, mouse, or touch · WebGL 2
 
 ## Playing
 
-Choose **Step inside** to start. Open **Controls** for the in-game reference.
+The game opens inside the habitat. On desktop, click the world to look around;
+touch controls are ready immediately. Open **Controls** for the in-game reference.
 
 On phones and tablets, use the left stick to move and drag the world to look.
 Tap Jump or Fire; hold Fire to charge. Fly enables Rise and Down. Systems contains
 probe controls and Reset; Orbit opens the exterior view and its collapsible map.
-Landscape gives more room, and portrait also works.
+Touch play uses landscape; portrait pauses the game with a rotate-device prompt.
+**Use landscape** or **Fullscreen** also tries to lock orientation where supported.
 
 Touch controls appear automatically for a primary touch pointer. Touchscreen
 laptops keep keyboard and mouse controls by default when the primary pointer is
