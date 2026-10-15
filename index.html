@@ -106,7 +106,12 @@
         ><input id="ghost-toggle" type="checkbox" checked
       /></label>
       <div class="trajectory-legend">
-        <i></i> PREDICTED PATH <span id="flight-time">—</span>
+        <i aria-hidden="true"></i
+        ><span id="preview-label">NEXT SHOT · 28 m/s</span>
+        <span id="flight-time">—</span>
+      </div>
+      <div class="trail-legend">
+        <i aria-hidden="true"></i> FIRED PROBE TRAILS
       </div>
       <button id="launch-button" class="launch-button">
         Launch probe <span>↗ <kbd>HOLD / F</kbd></span>
@@ -118,7 +123,7 @@
         aria-label="Launcher charge"
       ></progress>
       <p id="charge-status" class="charge-status">
-        HOLD TO CHARGE · RELEASE TO LAUNCH
+        TAP TO FIRE · HOLD TO CHARGE
       </p>
       <div class="probe-tools">
         <span>PROBES <strong id="probe-count">0 / 5</strong></span
@@ -207,7 +212,7 @@
         <dt>1 / 2</dt>
         <dd>Walking / powered flight</dd>
         <dt>Hold click / F / launch button</dt>
-        <dd>Charge for one second; release to launch</dd>
+        <dd>Tap to fire; hold for 1.2 seconds for full power</dd>
         <dt>C</dt>
         <dd>Clear probes. Only the newest five are kept.</dd>
         <dt>, / . or Time selector</dt>
@@ -223,8 +228,9 @@
         </dd>
       </dl>
       <p>
-        The dotted line predicts a probe’s path in the rotating frame. Watch it
-        bend: the Coriolis effect is geometry in motion.
+        The dotted path previews the next shot at the speed shown. Charging
+        begins after 0.2 seconds; after release, the preview returns to 28 m/s.
+        Gold trails show fired probes. Both use the habitat’s rotating frame.
       </p>
       <p class="help-small">
         A compact, stylized Stanford torus. Buildings are scenery; the floor and

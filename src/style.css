@@ -443,9 +443,22 @@ input:checked:before {
   width: 17px;
   border-top: 2px dotted var(--lime);
 }
-.trajectory-legend span {
+.trajectory-legend #flight-time {
   margin-left: auto;
   letter-spacing: 0;
+}
+.trail-legend {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 9px;
+  color: var(--muted);
+  font-size: 7px;
+  letter-spacing: 1px;
+}
+.trail-legend i {
+  width: 17px;
+  border-top: 1px solid #ffcc8a;
 }
 .launch-button {
   display: flex;

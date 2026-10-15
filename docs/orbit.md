@@ -61,7 +61,7 @@ An Earth sphere and Sun ray determine whether the habitat is in shadow. The Sun'
 
 ## Time and limits
 
-The **1×, 5×, and 10×** controls scale the shared simulation clock for movement, ballistics, spin, orbital positions, and scenery animation. A 127-minute orbit takes approximately 12.7 real minutes at 10×. Launcher charging remains one real second at every rate.
+The **1×, 5×, and 10×** controls scale the shared simulation clock for movement, ballistics, spin, orbital positions, and scenery animation. A 127-minute orbit takes approximately 12.7 real minutes at 10×. Launcher input uses real time at every rate: a tap or hold of up to 0.2 seconds fires at 28 m/s; holding longer charges to 90 m/s over the next second, reaching full charge after 1.2 seconds total. Pausing or hiding the tab cancels charging.
 
 The opening screen holds simulation time at **T+00:00:00**, preserving the Europe and Moon alignment while the player reads. Time advances during active exploration or exterior orbit view. Esc pauses exploration while the mouse is released; the Controls dialog and a hidden browser tab pause simulation in either view. Orbit view otherwise advances time while visible. Resuming does not catch up time spent paused or hidden.
 

@@ -16,6 +16,12 @@ import type { MotionState } from "./physics";
 import { buildSky } from "./sky";
 import { buildAvatar } from "./avatar";
 import { updateMotionRamp, walkSpeed, flightSpeed } from "./movement";
+import {
+  CHARGE_DELAY_SECONDS,
+  TAP_LAUNCH_SPEED,
+  chargeFraction,
+  launchSpeed,
+} from "./launcher";
 import { buildOrbitMap } from "./orbit-map";
 import {
   getOrbitState,
@@ -108,15 +114,12 @@ let pointerUnavailable = false;
 let fallbackResumed = false;
 let lastShot = -Infinity;
 let elapsed = 0;
-let realElapsed = 0;
 let simulationRate = 1;
 const TIME_RATES = [1, 5, 10];
-const TAP_LAUNCH_SPEED = 28;
-const FULL_LAUNCH_SPEED = 90;
 const MAX_PROBES = 5;
 let motionRamp = 0;
 let chargeSource: "mouse" | "button" | "keyboard" | null = null;
-let chargeSeconds = 0;
+let chargeStartedAt = 0;
 let recoil = 0;
 let fixedAccumulator = 0;
 let ghostRefresh = 0;
@@ -259,22 +262,27 @@ function explorationActive() {
   );
 }
 
+function heldChargeSeconds() {
+  return chargeSource
+    ? Math.max(0, (performance.now() - chargeStartedAt) / 1000)
+    : 0;
+}
+
 function effectiveLaunchSpeed() {
-  return (
-    TAP_LAUNCH_SPEED +
-    (FULL_LAUNCH_SPEED - TAP_LAUNCH_SPEED) * Math.min(chargeSeconds, 1)
-  );
+  return launchSpeed(heldChargeSeconds());
 }
 
 function updateLauncherUI() {
-  const speed = Math.round(effectiveLaunchSpeed());
+  const heldSeconds = heldChargeSeconds();
+  const speed = Math.round(launchSpeed(heldSeconds));
+  element("preview-label").textContent = `NEXT SHOT · ${speed} m/s`;
   element("charge-meter").setAttribute(
     "value",
-    String(Math.min(chargeSeconds, 1)),
+    String(chargeFraction(heldSeconds)),
   );
   element("charge-status").textContent = chargeSource
-    ? `${speed} m/s · release to launch`
-    : "HOLD TO CHARGE · RELEASE TO LAUNCH";
+    ? `${speed} m/s · ${heldSeconds < CHARGE_DELAY_SECONDS ? "hold to charge" : "release to launch"}`
+    : "TAP TO FIRE · HOLD TO CHARGE";
   element("probe-count").textContent = `${probes.length} / ${MAX_PROBES}`;
   element("launch-button").classList.toggle("charging", chargeSource !== null);
   element<HTMLButtonElement>("launch-button").disabled = !explorationActive();
@@ -285,14 +293,14 @@ function updateLauncherUI() {
 
 function cancelCharge() {
   chargeSource = null;
-  chargeSeconds = 0;
+  chargeStartedAt = 0;
   updateLauncherUI();
 }
 
 function beginCharge(source: "mouse" | "button" | "keyboard") {
   if (!explorationActive() || chargeSource) return;
   chargeSource = source;
-  chargeSeconds = 0;
+  chargeStartedAt = performance.now();
   updateLauncherUI();
 }
 
@@ -570,8 +578,9 @@ function removeProbe(probe: Probe) {
 }
 
 function launch(speed = TAP_LAUNCH_SPEED) {
-  if (!explorationActive() || realElapsed - lastShot < 0.16) return;
-  lastShot = realElapsed;
+  const now = performance.now() / 1000;
+  if (!explorationActive() || now - lastShot < 0.16) return;
+  lastShot = now;
   recoil = 1;
   if (probes.length >= MAX_PROBES) removeProbe(probes.shift()!);
   const state = currentShot(speed);
@@ -896,13 +905,11 @@ function frame(now: number) {
   const dt = Math.min((now - previous) / 1000, 0.1);
   previous = now;
   if (document.hidden) return;
-  realElapsed += dt;
   const active = explorationActive();
   const simulationRunning = !help.open && (active || view === "orbit");
   const simulationDelta = simulationRunning ? dt * simulationRate : 0;
   elapsed += simulationDelta;
   if (active && chargeSource) {
-    chargeSeconds = Math.min(1, chargeSeconds + dt);
     updateLauncherUI();
   }
   if (!active && chargeSource) cancelCharge();
@@ -973,7 +980,7 @@ function frame(now: number) {
     ),
     grounded,
     flying: flight,
-    charge: chargeSource ? Math.min(chargeSeconds, 1) : 0,
+    charge: chargeFraction(heldChargeSeconds()),
     recoil,
     pitch,
     aspect: camera.aspect,
