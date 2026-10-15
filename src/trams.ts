@@ -6,7 +6,15 @@ import {
   TRAM_TRACK_RADIUS,
   TRAMS_PER_DIRECTION,
 } from "./tram-motion";
-import { TRAM_LENGTH, TRAM_WIDTH, TRAM_ROOF_HEIGHT } from "./tram-physics";
+import {
+  TRAM_LENGTH,
+  TRAM_WIDTH,
+  TRAM_DECK_HEIGHT,
+  TRAM_PLATFORM_HEIGHT,
+  TRAM_PLATFORM_ACROSS,
+  TRAM_PLATFORM_WIDTH,
+  TRAM_PLATFORM_LENGTH,
+} from "./tram-physics";
 
 type Station = { name: string; angle: number; color: string };
 type Direction = "spinward" | "antispinward";
@@ -15,8 +23,8 @@ const TAU = Math.PI * 2;
 const FLOOR_RADIUS = 210;
 const WHITE = "#dce6db";
 const DARK = "#304b4b";
-const MINT = "#6fe1bd";
-const AMBER = "#edba6b";
+const MINT = "#90bbaa";
+const AMBER = "#c5af86";
 const SEGMENTS = [
   [1, 1, 1, 1, 1, 1, 0],
   [0, 1, 1, 0, 0, 0, 0],
@@ -143,7 +151,114 @@ function strip(
   return geometry;
 }
 
-/** Twin light-rail loops. Time is analytical, so stops also survive orbit skips. */
+/** A curved station ramp, with the same linear height profile as foot collisions. */
+function stationRamp(angle: number, side: number) {
+  const positions: number[] = [];
+  const normals: number[] = [];
+  const indices: number[] = [];
+  const slope = TRAM_PLATFORM_HEIGHT / (5.5 - 3.4);
+  const normal = new THREE.Vector3();
+  for (let i = 0; i <= 4; i++) {
+    const a = angle + ((i / 4 - 0.5) * 3.1) / FLOOR_RADIUS;
+    const c = Math.cos(a);
+    const s = Math.sin(a);
+    for (const edge of [-1, 1]) {
+      const across = side > 0 ? (edge < 0 ? 3.4 : 5.5) : edge < 0 ? -5.5 : -3.4;
+      const height =
+        ((Math.abs(across) - 3.4) / (5.5 - 3.4)) * TRAM_PLATFORM_HEIGHT;
+      positions.push(
+        (FLOOR_RADIUS - height) * c,
+        across,
+        (FLOOR_RADIUS - height) * s,
+      );
+      normal.set(-c, -side * slope, -s).normalize();
+      normals.push(normal.x, normal.y, normal.z);
+    }
+    if (i < 4) {
+      const j = i * 2;
+      indices.push(j, j + 2, j + 1, j + 1, j + 2, j + 3);
+    }
+  }
+  const result = new THREE.BufferGeometry();
+  result.setAttribute(
+    "position",
+    new THREE.Float32BufferAttribute(positions, 3),
+  );
+  result.setAttribute("normal", new THREE.Float32BufferAttribute(normals, 3));
+  result.setIndex(indices);
+  return result;
+}
+
+/** Low platform walls follow the same cylinder as the level walking surface. */
+function platformSkirt(angle: number, across: number) {
+  const positions: number[] = [];
+  const normals: number[] = [];
+  const indices: number[] = [];
+  const arc = TRAM_PLATFORM_LENGTH / FLOOR_RADIUS;
+  const point = (a: number, y: number, height: number) =>
+    new THREE.Vector3(
+      (FLOOR_RADIUS - height) * Math.cos(a),
+      y,
+      (FLOOR_RADIUS - height) * Math.sin(a),
+    );
+  const quad = (points: THREE.Vector3[], normal: THREE.Vector3) => {
+    const cross = points[1]
+      .clone()
+      .sub(points[0])
+      .cross(points[2].clone().sub(points[0]));
+    if (cross.dot(normal) < 0)
+      points = [points[0], points[3], points[2], points[1]];
+    const offset = positions.length / 3;
+    for (const value of points) {
+      positions.push(value.x, value.y, value.z);
+      normals.push(normal.x, normal.y, normal.z);
+    }
+    indices.push(
+      offset,
+      offset + 1,
+      offset + 2,
+      offset,
+      offset + 2,
+      offset + 3,
+    );
+  };
+  for (const side of [-1, 1]) {
+    const y = across + (side * TRAM_PLATFORM_WIDTH) / 2;
+    for (let i = 0; i < 16; i++) {
+      const a = angle + (i / 16 - 0.5) * arc;
+      const b = angle + ((i + 1) / 16 - 0.5) * arc;
+      quad(
+        [
+          point(a, y, 0),
+          point(b, y, 0),
+          point(b, y, TRAM_PLATFORM_HEIGHT),
+          point(a, y, TRAM_PLATFORM_HEIGHT),
+        ],
+        new THREE.Vector3(0, side, 0),
+      );
+    }
+    const a = angle + (side * arc) / 2;
+    quad(
+      [
+        point(a, across - TRAM_PLATFORM_WIDTH / 2, 0),
+        point(a, across + TRAM_PLATFORM_WIDTH / 2, 0),
+        point(a, across + TRAM_PLATFORM_WIDTH / 2, TRAM_PLATFORM_HEIGHT),
+        point(a, across - TRAM_PLATFORM_WIDTH / 2, TRAM_PLATFORM_HEIGHT),
+      ],
+      new THREE.Vector3(-Math.sin(a) * side, 0, Math.cos(a) * side),
+    );
+  }
+  const result = new THREE.BufferGeometry();
+  result.setAttribute(
+    "position",
+    new THREE.Float32BufferAttribute(positions, 3),
+  );
+  result.setAttribute("normal", new THREE.Float32BufferAttribute(normals, 3));
+  result.setIndex(indices);
+  return result;
+}
+
+/** Twin open-cart loops. Time is analytical, so stops survive orbit skips. */
 export function buildTramSystem(
   parent: THREE.Group,
   stations: readonly Station[],
@@ -170,30 +285,13 @@ export function buildTramSystem(
   );
   const railMaterial = material(
     new THREE.MeshStandardMaterial({
-      color: "#b6cccb",
-      metalness: 0.78,
-      roughness: 0.3,
+      color: "#526b60",
+      metalness: 0.35,
+      roughness: 0.7,
     }),
-  );
-  const bedMaterial = material(
-    new THREE.MeshStandardMaterial({ color: "#566b65", roughness: 1 }),
   );
   const platformMaterial = material(
     new THREE.MeshStandardMaterial({ color: "#c9ceba", roughness: 0.9 }),
-  );
-  const sleeperMaterial = material(
-    new THREE.MeshStandardMaterial({ color: "#899384", roughness: 0.95 }),
-  );
-  const glazing = material(
-    new THREE.MeshStandardMaterial({
-      color: "#a5dbcf",
-      transparent: true,
-      opacity: 0.19,
-      roughness: 0.19,
-      metalness: 0.1,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-    }),
   );
   const headlight = material(new THREE.MeshBasicMaterial({ color: "#fff1bb" }));
   const taillight = material(new THREE.MeshBasicMaterial({ color: "#ef795e" }));
@@ -201,26 +299,14 @@ export function buildTramSystem(
     new THREE.MeshBasicMaterial({ vertexColors: true }),
   );
   const box = geometry(new THREE.BoxGeometry(1, 1, 1));
-  const wheel = geometry(
-    new THREE.CylinderGeometry(0.24, 0.24, 0.14, 12).rotateX(Math.PI / 2),
-  );
   const staticParts = new Parts();
   const signParts = new Parts();
   const rails = new Parts();
   const railSection = geometry(
-    new THREE.TorusGeometry(TRAM_TRACK_RADIUS, 0.055, 4, 512).rotateX(
+    new THREE.TorusGeometry(FLOOR_RADIUS - 0.1, 0.085, 4, 512).rotateX(
       Math.PI / 2,
     ),
   );
-  const sleeperCount = 660;
-  const sleepers = new THREE.InstancedMesh(
-    box,
-    sleeperMaterial,
-    sleeperCount * 2,
-  );
-  sleepers.name = "Rail sleepers";
-  root.add(sleepers);
-  let sleeperIndex = 0;
 
   const stationBox = (
     anchor: THREE.Matrix4,
@@ -281,35 +367,24 @@ export function buildTramSystem(
     const across = side * TRAM_TRACK_ACROSS;
     const direction = side === 1 ? -1 : 1;
     const stripe = side === 1 ? MINT : AMBER;
-    root.add(new THREE.Mesh(geometry(strip(209.96, across, 2.8)), bedMaterial));
-    for (const gaugeSide of [-1, 1]) {
-      rails.add(
-        railSection,
-        new THREE.Matrix4().makeTranslation(0, across + gaugeSide * 0.65, 0),
-        "#ffffff",
-      );
-    }
-    for (let i = 0; i < sleeperCount; i++) {
-      sleepers.setMatrixAt(
-        sleeperIndex++,
-        placement((TAU * i) / sleeperCount, across, 0.115).scale(
-          new THREE.Vector3(0.19, 0.075, 2.35),
-        ),
-      );
-    }
+    rails.add(
+      railSection,
+      new THREE.Matrix4().makeTranslation(0, across, 0),
+      "#ffffff",
+    );
     for (let index = 0; index < TRAM_STATION_COUNT; index++) {
       const station = stations[index];
       const angle = station?.angle ?? (index * TAU) / TRAM_STATION_COUNT;
-      const platformAcross = side * 6.6;
-      const platformArc = 16 / FLOOR_RADIUS;
-      const anchor = placement(angle, platformAcross, 0);
+      const platformAcross = side * TRAM_PLATFORM_ACROSS;
+      const platformArc = TRAM_PLATFORM_LENGTH / FLOOR_RADIUS;
+      const anchor = placement(angle, platformAcross, TRAM_PLATFORM_HEIGHT);
       root.add(
         new THREE.Mesh(
           geometry(
             strip(
-              209.865,
+              FLOOR_RADIUS - TRAM_PLATFORM_HEIGHT,
               platformAcross,
-              2.2,
+              TRAM_PLATFORM_WIDTH,
               angle - platformArc / 2,
               platformArc,
             ),
@@ -317,27 +392,35 @@ export function buildTramSystem(
           platformMaterial,
         ),
       );
-      // A wide, unobstructed link back to the central walking promenade.
-      stationBox(anchor, 0, 0.085, side * 2.05, 3.1, 0.1, 4.1, "#d1cfb7");
+      // A shallow accessible ramp links the promenade to the level boarding deck.
+      root.add(
+        new THREE.Mesh(geometry(stationRamp(angle, side)), platformMaterial),
+      );
+      const skirt = geometry(platformSkirt(angle, platformAcross));
+      staticParts.add(skirt, new THREE.Matrix4(), "#b4bfaa");
       for (let tile = -4; tile <= 4; tile++) {
         const tileAngle = angle + (tile * 1.7) / FLOOR_RADIUS;
-        const curvedAnchor = placement(tileAngle, platformAcross, 0);
+        const curvedAnchor = placement(
+          tileAngle,
+          platformAcross,
+          TRAM_PLATFORM_HEIGHT,
+        );
         stationBox(
           curvedAnchor,
           0,
-          0.16,
+          0.009,
           -side * 0.97,
           1.62,
-          0.055,
+          0.015,
           0.13,
           stripe,
         );
       }
-      // Slender shelter is set behind the boarding edge, leaving the link open.
+      // A small shelter covers one end, leaving the platform and sky open.
       for (const end of [-1, 1]) {
         stationBox(
           anchor,
-          end * 5.4,
+          -4.1 + end * 1.8,
           1.55,
           side * 0.7,
           0.11,
@@ -345,17 +428,26 @@ export function buildTramSystem(
           0.11,
           "#94b8ad",
         );
-        stationBox(anchor, end * 5.4, 2.95, 0, 0.13, 0.1, 2.3, "#94b8ad");
+        stationBox(
+          anchor,
+          -4.1 + end * 1.8,
+          2.95,
+          0,
+          0.13,
+          0.1,
+          2.3,
+          "#94b8ad",
+        );
       }
-      stationBox(anchor, 0, 3.03, 0, 11.6, 0.12, 2.3, "#e2dfc5");
-      stationBox(anchor, 0, 3.11, -side * 1.03, 11.6, 0.05, 0.17, stripe);
-      stationBox(anchor, -3.7, 0.64, side * 0.39, 2.4, 0.14, 0.55, "#8f7960");
-      stationBox(anchor, -3.7, 0.91, side * 0.65, 2.4, 0.54, 0.08, "#8f7960");
+      stationBox(anchor, -4.1, 3.03, 0, 4.2, 0.12, 2.3, "#e2dfc5");
+      stationBox(anchor, -4.1, 3.11, -side * 1.03, 4.2, 0.05, 0.12, stripe);
+      stationBox(anchor, -3.7, 0.48, side * 0.39, 2.4, 0.12, 0.55, "#8f7960");
+      stationBox(anchor, -3.7, 0.75, side * 0.65, 2.4, 0.5, 0.08, "#8f7960");
       for (const leg of [-1, 1])
         stationBox(
           anchor,
           -3.7 + leg * 0.85,
-          0.38,
+          0.22,
           side * 0.39,
           0.09,
           0.44,
@@ -384,7 +476,7 @@ export function buildTramSystem(
         const arrow = anchor
           .clone()
           .multiply(
-            new THREE.Matrix4().makeTranslation(arrowAt, 0.18, -side * 0.3),
+            new THREE.Matrix4().makeTranslation(arrowAt, 0.009, -side * 0.3),
           );
         for (const wing of [-1, 1]) {
           const chevron = new THREE.Matrix4()
@@ -394,20 +486,17 @@ export function buildTramSystem(
                 (direction * wing * Math.PI) / 4,
               ),
             )
-            .scale(new THREE.Vector3(0.52, 0.025, 0.075));
+            .scale(new THREE.Vector3(0.52, 0.01, 0.075));
           staticParts.add(box, arrow.clone().multiply(chevron), stripe);
         }
       }
     }
   }
-  sleepers.instanceMatrix.needsUpdate = true;
-  sleepers.computeBoundingSphere();
   root.add(new THREE.Mesh(geometry(rails.geometry()), railMaterial));
   root.add(new THREE.Mesh(geometry(staticParts.geometry()), painted));
   root.add(new THREE.Mesh(geometry(signParts.geometry()), signMaterial));
 
   const bodyParts = new Parts();
-  const glassParts = new Parts();
   const stripeParts = new Parts();
   const frontLights = new Parts();
   const rearLights = new Parts();
@@ -416,145 +505,164 @@ export function buildTramSystem(
     x: number,
     y: number,
     z: number,
-    w: number,
-    h: number,
-    d: number,
+    width: number,
+    height: number,
+    depth: number,
     color = WHITE,
-  ) => parts.add(box, localBox(x, y, z, w, h, d), color);
-  carBox(bodyParts, 0, 0.45, 0, 7.9, 0.2, 2.05);
-  const localRoofHeight = TRAM_ROOF_HEIGHT - (FLOOR_RADIUS - TRAM_TRACK_RADIUS);
+  ) => parts.add(box, localBox(x, y, z, width, height, depth), color);
+  const localDeckHeight = TRAM_DECK_HEIGHT - (FLOOR_RADIUS - TRAM_TRACK_RADIUS);
+  // A low, completely open deck: broad entries on both sides have no doors.
   carBox(
     bodyParts,
     0,
-    localRoofHeight - 0.08,
+    localDeckHeight - 0.065,
     0,
     TRAM_LENGTH,
-    0.16,
+    0.13,
     TRAM_WIDTH,
+    "#d2d8bf",
   );
-  carBox(bodyParts, 0, 0.24, 0, 6.5, 0.18, 1.3, DARK);
+  carBox(bodyParts, 0, localDeckHeight - 0.17, 0, 6.8, 0.12, 0.63, DARK);
+  for (const side of [-1, 1]) {
+    carBox(
+      stripeParts,
+      0,
+      localDeckHeight - 0.035,
+      side * (TRAM_WIDTH / 2 + 0.005),
+      7.8,
+      0.045,
+      0.025,
+    );
+  }
+  // Fine deck seams give the standing area scale without adding obstacles.
+  for (const seam of [-0.6, 0, 0.6])
+    carBox(
+      bodyParts,
+      0,
+      localDeckHeight + 0.002,
+      seam,
+      7.85,
+      0.005,
+      0.012,
+      "#b8c4af",
+    );
   for (const end of [-1, 1]) {
+    // Compact central guide bogies straddle the single monorail underneath.
+    carBox(bodyParts, end * 2.65, 0.045, 0, 0.86, 0.18, 0.46, "#344e45");
+    carBox(bodyParts, end * 2.65, -0.015, -0.18, 0.67, 0.16, 0.11, "#586b5e");
+    carBox(bodyParts, end * 2.65, -0.015, 0.18, 0.67, 0.16, 0.11, "#586b5e");
+    // End benches face the open central standing area.
+    carBox(
+      bodyParts,
+      end * 3.22,
+      localDeckHeight + 0.45,
+      0,
+      0.58,
+      0.12,
+      1.94,
+      "#91a78b",
+    );
+    carBox(
+      bodyParts,
+      end * 3.5,
+      localDeckHeight + 0.65,
+      0,
+      0.07,
+      0.43,
+      1.94,
+      "#91a78b",
+    );
     for (const side of [-1, 1]) {
-      bodyParts.add(
-        wheel,
-        new THREE.Matrix4().makeTranslation(end * 2.55, 0.24, side * 0.77),
-        "#263b3b",
-      );
       carBox(
         bodyParts,
-        end * 2.55,
-        0.48,
-        side * 0.84,
-        1.3,
-        0.25,
-        0.19,
-        "#728b7e",
+        end * 3.22,
+        localDeckHeight + 0.21,
+        side * 0.68,
+        0.39,
+        0.42,
+        0.07,
+        "#607e6f",
       );
-    }
-    carBox(bodyParts, end * 3.9, 0.87, 0, 0.2, 0.64, 2.03);
-    carBox(bodyParts, end * 3.91, 2.33, 0, 0.18, 0.25, 2.03);
-    for (const side of [-1, 1])
-      carBox(bodyParts, end * 3.9, 1.73, side * 0.95, 0.17, 1.12, 0.13, DARK);
-    carBox(glassParts, end * 3.925, 1.73, 0, 0.035, 1.13, 1.77);
-    carBox(stripeParts, end * 3.99, 1.13, 0, 0.028, 0.12, 1.85);
-    for (const side of [-1, 1])
+      for (const along of [2.6, 3.87]) {
+        carBox(
+          bodyParts,
+          end * along,
+          localDeckHeight + 0.43,
+          side * (TRAM_WIDTH / 2 - 0.07),
+          0.045,
+          0.86,
+          0.045,
+          "#7b9889",
+        );
+      }
+      // Short side rails protect seated passengers; the middle 5.2m stays open.
+      carBox(
+        bodyParts,
+        end * 3.235,
+        localDeckHeight + 0.86,
+        side * (TRAM_WIDTH / 2 - 0.07),
+        1.32,
+        0.045,
+        0.045,
+        "#8da99a",
+      );
       carBox(
         end === 1 ? frontLights : rearLights,
-        end * 4.016,
-        0.89,
-        side * 0.69,
-        0.035,
-        0.13,
-        0.27,
-      );
-  }
-  for (const side of [-1, 1]) {
-    for (const end of [-1, 1]) {
-      carBox(bodyParts, end * 2.36, 0.86, side * 0.98, 2.95, 0.61, 0.1);
-      carBox(bodyParts, end * 2.36, 2.32, side * 0.98, 2.95, 0.26, 0.1);
-      carBox(glassParts, end * 2.36, 1.73, side * 0.987, 2.86, 1.12, 0.035);
-      carBox(stripeParts, end * 2.36, 1.13, side * 1.04, 2.95, 0.12, 0.028);
-      // Two longitudinal benches leave a clear aisle through the car.
-      carBox(
-        bodyParts,
-        end * 2.28,
-        0.91,
-        side * 0.68,
-        2.55,
-        0.16,
-        0.44,
-        "#688f81",
-      );
-      carBox(
-        bodyParts,
-        end * 2.28,
-        1.18,
-        side * 0.88,
-        2.55,
-        0.58,
-        0.1,
-        "#688f81",
+        end * (TRAM_LENGTH / 2 + 0.012),
+        localDeckHeight - 0.035,
+        side * 0.81,
+        0.028,
+        0.065,
+        0.17,
       );
     }
-    for (const upright of [-3.72, -0.84, 0.84, 3.72])
-      carBox(bodyParts, upright, 1.61, side * 0.99, 0.1, 1.81, 0.1, DARK);
+    carBox(
+      bodyParts,
+      end * 3.87,
+      localDeckHeight + 0.86,
+      0,
+      0.045,
+      0.045,
+      TRAM_WIDTH - 0.1,
+      "#8da99a",
+    );
+    carBox(
+      stripeParts,
+      end * (TRAM_LENGTH / 2 + 0.004),
+      localDeckHeight - 0.04,
+      0,
+      0.025,
+      0.045,
+      TRAM_WIDTH - 0.2,
+    );
   }
-  const doorWindows = new Parts();
-  // Actual openings in the door panels keep the glazing see-through.
-  // Replace the panel by a narrow frame and lower apron around the clear pane.
-  const framedDoor = new Parts();
-  carBox(framedDoor, 0, 0.83, 0, 0.72, 0.67, 0.055);
-  carBox(framedDoor, 0, 2.32, 0, 0.72, 0.08, 0.055);
-  for (const edge of [-1, 1])
-    carBox(framedDoor, edge * 0.335, 1.74, 0, 0.05, 1.1, 0.055);
-  carBox(doorWindows, 0, 1.74, 0, 0.62, 1.1, 0.025);
   const bodyGeometry = geometry(bodyParts.geometry());
-  const glassGeometry = geometry(glassParts.geometry());
   const stripeGeometry = geometry(stripeParts.geometry());
   const headGeometry = geometry(frontLights.geometry());
   const tailGeometry = geometry(rearLights.geometry());
-  const doorGeometry = geometry(framedDoor.geometry());
-  const doorGlassGeometry = geometry(doorWindows.geometry());
-  const cars: {
-    root: THREE.Group;
-    doors: THREE.InstancedMesh[];
-    direction: Direction;
-    index: number;
-  }[] = [];
+  const cars: { root: THREE.Group; direction: Direction; index: number }[] = [];
   for (const direction of ["spinward", "antispinward"] as const) {
     const routeMaterial = material(
       new THREE.MeshStandardMaterial({
         color: direction === "spinward" ? MINT : AMBER,
-        roughness: 0.62,
+        roughness: 0.8,
         metalness: 0.12,
       }),
     );
     for (let index = 0; index < TRAMS_PER_DIRECTION; index++) {
       const car = new THREE.Group();
-      car.name = `${direction} tram ${index + 1}`;
+      car.name = `${direction} open cart ${index + 1}`;
       car.matrixAutoUpdate = false;
       car.add(
         new THREE.Mesh(bodyGeometry, painted),
-        new THREE.Mesh(glassGeometry, glazing),
         new THREE.Mesh(stripeGeometry, routeMaterial),
         new THREE.Mesh(headGeometry, headlight),
         new THREE.Mesh(tailGeometry, taillight),
       );
-      const doors = [
-        new THREE.InstancedMesh(doorGeometry, painted, 4),
-        new THREE.InstancedMesh(doorGlassGeometry, glazing, 4),
-      ];
-      // Door leaves slide beside the fixed windows, rather than through passengers.
-      for (const mesh of doors) {
-        mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-        mesh.frustumCulled = false;
-        car.add(mesh);
-      }
       root.add(car);
-      cars.push({ root: car, doors, direction, index });
+      cars.push({ root: car, direction, index });
     }
   }
-
   const update = (simSeconds: number) => {
     for (const car of cars) {
       const state = getTramState(simSeconds, car.direction, car.index);
@@ -570,19 +678,6 @@ export function buildTramSystem(
         ),
       );
       car.root.matrixWorldNeedsUpdate = true;
-      let leaf = 0;
-      for (const side of [-1, 1]) {
-        for (const half of [-1, 1]) {
-          const transform = new THREE.Matrix4().makeTranslation(
-            half * (0.37 + state.doorsOpenFraction * 0.79),
-            0,
-            side * 1.045,
-          );
-          for (const mesh of car.doors) mesh.setMatrixAt(leaf, transform);
-          leaf++;
-        }
-      }
-      for (const mesh of car.doors) mesh.instanceMatrix.needsUpdate = true;
     }
   };
   update(0);
@@ -594,10 +689,6 @@ export function buildTramSystem(
       if (disposed) return;
       disposed = true;
       root.removeFromParent();
-      sleepers.dispose();
-      for (const car of cars) {
-        for (const doors of car.doors) doors.dispose();
-      }
       for (const resource of geometries) resource.dispose();
       for (const resource of materials) resource.dispose();
     },

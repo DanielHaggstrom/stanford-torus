@@ -31,9 +31,10 @@ import {
 import { nextOrbitOccurrence } from "./time-skip";
 import { getTramState } from "./tram-motion";
 import {
-  TRAM_ROOF_HEIGHT,
+  TRAM_DECK_HEIGHT,
   carryTramRider,
   resolveTramCollision,
+  walkingSupportHeight,
   tramSurfaceVelocity,
 } from "./tram-physics";
 import type { TramSupport } from "./tram-physics";
@@ -684,7 +685,11 @@ function simulatePlayer(dt: number, simTime: number) {
       .lerp(desired, 1 - Math.exp(-12 * dt));
     position.copy(player.position).addScaledVector(velocity, dt);
     const rho = Math.hypot(position.x, position.z);
-    const supportRadius = FLOOR_RADIUS - (tramSupport ? TRAM_ROOF_HEIGHT : 0);
+    const supportRadius =
+      FLOOR_RADIUS -
+      (tramSupport
+        ? TRAM_DECK_HEIGHT
+        : walkingSupportHeight(position, previousState.position, endTime));
     position.x *= supportRadius / rho;
     position.z *= supportRadius / rho;
     if (tramSupport)
@@ -717,9 +722,7 @@ function simulatePlayer(dt: number, simTime: number) {
   );
   player = contact.state;
   tramSupport = flight ? null : contact.support;
-  grounded =
-    tramSupport !== null ||
-    Math.hypot(player.position.x, player.position.z) >= FLOOR_RADIUS - 0.001;
+  grounded = contact.grounded;
   if (contact.pushed && endTime - lastTramPush > 1.5) {
     lastTramPush = endTime;
     notice("Tram pushed you clear of the track");
@@ -931,7 +934,7 @@ function updateTelemetry() {
   element("gravity-value").innerHTML =
     `${((ANGULAR_SPEED ** 2 * rho) / GRAVITY).toFixed(2)} <small>g</small>`;
   element("altitude-value").innerHTML =
-    `${Math.max(0, FLOOR_RADIUS - rho).toFixed(1)} <small>m</small>`;
+    `${Math.max(0, FLOOR_RADIUS - rho + 1e-8).toFixed(1)} <small>m</small>`;
   element("speed-value").innerHTML =
     `${Math.hypot(player.velocity.x, player.velocity.y, player.velocity.z).toFixed(1)} <small>m/s</small>`;
   const angle =
@@ -1027,12 +1030,16 @@ function frame(now: number) {
     inertialView ? "inertial" : "habitat",
   );
   habitat.update(elapsed, inertialView ? getOrbitState(elapsed) : orbit);
+  const avatarSurfaceVelocity =
+    tramSupport && grounded
+      ? tramSurfaceVelocity(player.position, tramSupport, elapsed)
+      : { x: 0, y: 0, z: 0 };
   avatar.update({
     deltaSeconds: dt,
     movementSpeed: Math.hypot(
-      player.velocity.x,
-      player.velocity.y,
-      player.velocity.z,
+      player.velocity.x - avatarSurfaceVelocity.x,
+      player.velocity.y - avatarSurfaceVelocity.y,
+      player.velocity.z - avatarSurfaceVelocity.z,
     ),
     grounded,
     flying: flight,

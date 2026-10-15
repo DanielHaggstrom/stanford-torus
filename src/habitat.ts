@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { buildTramSystem } from "./trams";
+import { stationSupportHeight } from "./tram-physics";
 
 /** Metres, in the habitat's co-rotating frame. The spin axis is world Y. */
 export const HABITAT_RADIUS = 210;
@@ -54,10 +55,16 @@ function floorMatrix(
   const tangent = new THREE.Vector3(-s, 0, c);
   const up = new THREE.Vector3(-c, 0, -s);
   const rotation = new THREE.Matrix4().makeBasis(tangent, up, LOCAL_FORWARD);
+  const floorHeight = stationSupportHeight({
+    x: HABITAT_RADIUS * c,
+    y: across,
+    z: HABITAT_RADIUS * s,
+  });
+  const radius = HABITAT_RADIUS - height - floorHeight;
   const position = new THREE.Vector3(
-    (HABITAT_RADIUS - height) * c - tangentOffset * s,
+    radius * c - tangentOffset * s,
     across,
-    (HABITAT_RADIUS - height) * s + tangentOffset * c,
+    radius * s + tangentOffset * c,
   );
   return rotation.scale(scale).setPosition(position);
 }
@@ -573,7 +580,7 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
     const angle = (i / 72) * TAU;
     const district = Math.floor(i / 12);
     for (const side of [-1, 1]) {
-      if (i % 2 === 0) {
+      if (i % 2 === 0 && i % 12 !== 0) {
         lamps.push({
           matrix: floorMatrix(
             angle,

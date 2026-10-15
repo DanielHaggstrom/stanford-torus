@@ -82,7 +82,12 @@ test("spinward velocity follows the habitat's +Y rotation, with the reverse on t
     const rotation = rotationVelocity(position);
     const alignment = velocity.x * rotation.x + velocity.z * rotation.z;
     assert.ok(direction === "spinward" ? alignment > 0 : alignment < 0);
-    assert.ok(state.speed > 10 && state.speed < 11);
+    assert.ok(state.speed >= 18 && state.speed < 20);
+    near(
+      state.speed,
+      (TRAM_TRACK_RADIUS * TRAM_STATION_ANGLE * Math.PI) /
+        (2 * TRAM_TRAVEL_SECONDS),
+    );
     near(state.secondsToArrival, TRAM_TRAVEL_SECONDS / 2);
     near(state.secondsToDeparture, 0);
   }
@@ -105,7 +110,6 @@ test("each leg starts and ends continuously at rest at the correct platform", ()
     const departure = getTramState(TRAM_DWELL_SECONDS - offset, direction);
     assert.equal(departure.stopped, false);
     near(departure.speed, 0);
-    near(departure.doorsOpenFraction, 0);
     const arrival = getTramState(TRAM_LEG_SECONDS - offset, direction);
     assert.equal(arrival.stopped, true);
     near(
@@ -136,38 +140,18 @@ test("reported velocity matches the path derivative throughout travel", () => {
   }
 });
 
-test("doors open only while stopped and close before departure", () => {
-  for (const direction of directions) {
-    const offset = directionOffset(direction);
-    for (const [seconds, opening] of [
-      [0, 0],
-      [0.5, 0.5],
-      [1, 1],
-      [4, 1],
-      [7, 1],
-      [7.5, 0.5],
-      [8, 0],
-      [24, 0],
-    ]) {
-      const state = getTramState(seconds! - offset, direction);
-      near(state.doorsOpenFraction, opening!);
-      assert.ok(state.stopped || state.doorsOpenFraction === 0);
-    }
-  }
-});
-
 test("cars on a track stay exactly two stations apart, including across a time skip", () => {
   for (const direction of directions) {
     for (const time of [
       0,
-      7,
-      8,
-      17.123,
-      39.999,
-      40,
-      111,
-      239.9,
-      240,
+      TRAM_DWELL_SECONDS - 1,
+      TRAM_DWELL_SECONDS,
+      TRAM_DWELL_SECONDS + TRAM_TRAVEL_SECONDS * 0.371,
+      TRAM_LEG_SECONDS - 0.001,
+      TRAM_LEG_SECONDS,
+      TRAM_LEG_SECONDS * 2.775,
+      TRAM_LAP_SECONDS - 0.1,
+      TRAM_LAP_SECONDS,
       1e12 + 13.25,
     ]) {
       const states = Array.from({ length: TRAMS_PER_DIRECTION }, (_, car) =>

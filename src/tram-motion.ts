@@ -4,7 +4,7 @@ export const TRAMS_PER_DIRECTION = 3;
 export const TRAM_TRACK_ACROSS = 9;
 export const TRAM_TRACK_RADIUS = 209.8;
 export const TRAM_DWELL_SECONDS = 8;
-export const TRAM_TRAVEL_SECONDS = 32;
+export const TRAM_TRAVEL_SECONDS = 18;
 export const TRAM_LEG_SECONDS = TRAM_DWELL_SECONDS + TRAM_TRAVEL_SECONDS;
 export const TRAM_LAP_SECONDS = TRAM_STATION_COUNT * TRAM_LEG_SECONDS;
 export const TRAM_STATION_ANGLE = (2 * Math.PI) / TRAM_STATION_COUNT;
@@ -23,9 +23,8 @@ export interface TramState {
   /** Current station while stopped; departure station while moving. */
   stationIndex: number;
   nextStationIndex: number;
-  /** Seconds into this station's dwell-and-travel leg, in [0, 40). */
+  /** Seconds into this station's dwell-and-travel leg, below TRAM_LEG_SECONDS. */
   phaseElapsed: number;
-  doorsOpenFraction: number;
   /** Zero while travelling. */
   secondsToDeparture: number;
   /** Zero while stopped. */
@@ -34,10 +33,6 @@ export interface TramState {
 
 function wrap(value: number, period: number): number {
   return ((value % period) + period) % period;
-}
-
-function smoothStep(value: number): number {
-  return value * value * (3 - 2 * value);
 }
 
 /**
@@ -79,7 +74,7 @@ export function getTramState(
     ? 0
     : (phaseElapsed - TRAM_DWELL_SECONDS) / TRAM_TRAVEL_SECONDS;
 
-  // Half-cosine displacement starts and ends at rest, with a 10.8 m/s peak.
+  // Half-cosine displacement starts and ends at rest, with a 19.2 m/s peak.
   const progress = (1 - Math.cos(Math.PI * travelFraction)) / 2;
   const angularVelocity =
     (sign * TRAM_STATION_ANGLE * Math.PI * Math.sin(Math.PI * travelFraction)) /
@@ -88,11 +83,6 @@ export function getTramState(
     (stationIndex + sign * progress) * TRAM_STATION_ANGLE,
     2 * Math.PI,
   );
-  // One second to open, six seconds open, then one second to close.
-  const doorRamp = stopped
-    ? Math.min(1, phaseElapsed, TRAM_DWELL_SECONDS - phaseElapsed)
-    : 0;
-
   return {
     angle,
     angularVelocity,
@@ -101,7 +91,6 @@ export function getTramState(
     stationIndex,
     nextStationIndex,
     phaseElapsed,
-    doorsOpenFraction: smoothStep(doorRamp),
     secondsToDeparture: stopped ? TRAM_DWELL_SECONDS - phaseElapsed : 0,
     secondsToArrival: stopped ? 0 : TRAM_LEG_SECONDS - phaseElapsed,
   };

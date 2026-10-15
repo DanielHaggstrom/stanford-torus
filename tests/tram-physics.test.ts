@@ -11,21 +11,33 @@ import {
   getTramState,
   TRAM_TRACK_ACROSS,
   TRAM_LAP_SECONDS,
+  TRAM_LEG_SECONDS,
+  TRAM_DWELL_SECONDS,
+  TRAM_TRAVEL_SECONDS,
+  TRAM_STATION_ANGLE,
+  TRAM_STATION_COUNT,
+  TRAM_ANTISPINWARD_OFFSET_SECONDS,
   type TramDirection,
 } from "../src/tram-motion.ts";
 import {
   carryTramRider,
-  isOnTramRoof,
+  isOnTramDeck,
   PLAYER_RADIUS,
   resolveTramCollision,
+  stationSupportHeight,
+  walkingSupportHeight,
   tramSurfaceVelocity,
   TRAM_LENGTH,
-  TRAM_ROOF_HEIGHT,
+  TRAM_DECK_HEIGHT,
   TRAM_WIDTH,
+  TRAM_PLATFORM_HEIGHT,
+  TRAM_PLATFORM_ACROSS,
+  TRAM_PLATFORM_WIDTH,
+  TRAM_PLATFORM_LENGTH,
   type TramSupport,
 } from "../src/tram-physics.ts";
 
-const ROOF_RADIUS = FLOOR_RADIUS - TRAM_ROOF_HEIGHT;
+const DECK_RADIUS = FLOOR_RADIUS - TRAM_DECK_HEIGHT;
 const directions: TramDirection[] = ["spinward", "antispinward"];
 
 function near(actual: number, expected: number, tolerance = 1e-9): void {
@@ -41,405 +53,429 @@ function nearVector(actual: Vec3, expected: Vec3, tolerance = 1e-9): void {
   near(actual.z, expected.z, tolerance);
 }
 
-function positionOnCar(
-  support: TramSupport,
-  time: number,
-  { along = 0, across = 0, height = TRAM_ROOF_HEIGHT } = {},
-): Vec3 {
-  const angle =
-    getTramState(time, support.direction, support.carIndex).angle +
-    along / ROOF_RADIUS;
-  const radius = FLOOR_RADIUS - height;
+function atAngle(angle: number, across: number, height = 0): Vec3 {
   return {
-    x: Math.cos(angle) * radius,
-    y: (support.direction === "spinward" ? 1 : -1) * TRAM_TRACK_ACROSS + across,
-    z: Math.sin(angle) * radius,
+    x: Math.cos(angle) * (FLOOR_RADIUS - height),
+    y: across,
+    z: Math.sin(angle) * (FLOOR_RADIUS - height),
   };
 }
 
-function descendingState(position: Vec3, speed = 3): MotionState {
+function onCar(
+  support: TramSupport,
+  time: number,
+  { along = 0, across = 0, height = TRAM_DECK_HEIGHT } = {},
+): Vec3 {
+  const angle =
+    getTramState(time, support.direction, support.carIndex).angle +
+    along / DECK_RADIUS;
+  return atAngle(
+    angle,
+    (support.direction === "spinward" ? 1 : -1) * TRAM_TRACK_ACROSS + across,
+    height,
+  );
+}
+
+function verticalState(position: Vec3, down = 0): MotionState {
   const radius = Math.hypot(position.x, position.z);
   return {
     position,
     velocity: {
-      x: (position.x / radius) * speed,
-      y: 0.2,
-      z: (position.z / radius) * speed,
+      x: (position.x / radius) * down,
+      y: 0,
+      z: (position.z / radius) * down,
     },
   };
 }
 
-test("roof velocity follows each timetable, including stopped cars", () => {
-  for (const direction of directions) {
-    const support: TramSupport = { direction, carIndex: 1 };
-    for (const time of [2, 12, 24, 39.9, 49]) {
-      const position = positionOnCar(support, time);
-      const velocity = tramSurfaceVelocity(position, support, time);
-      const epsilon = 1e-4;
-      const before = positionOnCar(support, time - epsilon);
-      const after = positionOnCar(support, time + epsilon);
-      nearVector(
-        velocity,
-        {
-          x: (after.x - before.x) / (2 * epsilon),
-          y: 0,
-          z: (after.z - before.z) / (2 * epsilon),
-        },
-        1e-7,
+function stoppedTime(direction: TramDirection): number {
+  return direction === "spinward"
+    ? 2
+    : TRAM_LEG_SECONDS - TRAM_ANTISPINWARD_OFFSET_SECONDS + 2;
+}
+
+function movingTime(direction: TramDirection): number {
+  return (
+    TRAM_DWELL_SECONDS +
+    TRAM_TRAVEL_SECONDS / 2 -
+    (direction === "antispinward" ? TRAM_ANTISPINWARD_OFFSET_SECONDS : 0)
+  );
+}
+
+test("six station platforms and linear ramps line up on both promenade sides", () => {
+  for (let station = 0; station < TRAM_STATION_COUNT; station++) {
+    for (const side of [-1, 1]) {
+      const angle = station * TRAM_STATION_ANGLE;
+      near(
+        stationSupportHeight(atAngle(angle, side * TRAM_PLATFORM_ACROSS)),
+        TRAM_PLATFORM_HEIGHT,
       );
-      near(position.x * velocity.x + position.z * velocity.z, 0, 1e-9);
-      if (getTramState(time, direction, 1).stopped) {
-        nearVector(velocity, { x: 0, y: 0, z: 0 });
-      }
+      near(stationSupportHeight(atAngle(angle, side * 3.4)), 0);
+      near(
+        stationSupportHeight(atAngle(angle, side * 4.45)),
+        TRAM_PLATFORM_HEIGHT / 2,
+      );
+      near(
+        stationSupportHeight(atAngle(angle, side * 5.5)),
+        TRAM_PLATFORM_HEIGHT,
+      );
+      near(
+        stationSupportHeight(atAngle(angle + 1.5 / FLOOR_RADIUS, side * 4.45)),
+        TRAM_PLATFORM_HEIGHT / 2,
+      );
+      near(
+        stationSupportHeight(atAngle(angle + 1.6 / FLOOR_RADIUS, side * 4.45)),
+        0,
+      );
+      near(
+        stationSupportHeight(
+          atAngle(
+            angle + (TRAM_PLATFORM_LENGTH / 2 + 0.1) / FLOOR_RADIUS,
+            side * TRAM_PLATFORM_ACROSS,
+          ),
+        ),
+        0,
+      );
+      near(stationSupportHeight(atAngle(angle, side * 2)), 0);
+      near(stationSupportHeight(atAngle(angle, side * 8.1)), 0);
     }
+  }
+  near(
+    stationSupportHeight(atAngle(2 * Math.PI - 0.001, 4.45)),
+    TRAM_PLATFORM_HEIGHT / 2,
+  );
+});
+
+test("a grounded walk can go from promenade through ramp and platform into a cart without jumping", () => {
+  for (const side of [-1, 1]) {
+    const direction: TramDirection = side === 1 ? "spinward" : "antispinward";
+    const time = stoppedTime(direction);
+    const car: TramSupport = { direction, carIndex: 0 };
+    const angle = getTramState(time, direction).angle;
+    let previous = verticalState(atAngle(angle, 0));
+    let support: TramSupport | null = null;
+    for (let index = 1; index <= 108; index++) {
+      const across = (side * index * 10) / 120;
+      const point = atAngle(angle, across);
+      const terrainHeight = support
+        ? TRAM_DECK_HEIGHT
+        : walkingSupportHeight(point, previous.position, time);
+      const current = verticalState(atAngle(angle, across, terrainHeight));
+      current.velocity.y = side * 10;
+      const contact = resolveTramCollision(
+        previous,
+        current,
+        time,
+        time,
+        support,
+      );
+      assert.equal(contact.grounded, true, `grounded at y=${across}`);
+      assert.equal(contact.pushed, false);
+      support = contact.support;
+      previous = contact.state;
+    }
+    assert.deepEqual(support, car);
+    assert.ok(isOnTramDeck(previous.position, car, time));
   }
 });
 
-test("exact carrying keeps a rider on a curved roof through stops and wraparound", () => {
+test("station and ramp landings stop descent while preserving lateral momentum", () => {
+  for (const across of [4.45, TRAM_PLATFORM_ACROSS, 0]) {
+    const target = stationSupportHeight(atAngle(0, across));
+    const previous = verticalState(atAngle(0, across, target + 0.08), 3);
+    const current = verticalState(atAngle(0, across, target - 0.02), 3);
+    current.velocity.y = 1.5;
+    const contact = resolveTramCollision(
+      previous,
+      current,
+      1,
+      1 + 1 / 120,
+      null,
+    );
+    assert.equal(contact.grounded, true);
+    assert.equal(contact.support, null);
+    near(
+      FLOOR_RADIUS -
+        Math.hypot(contact.state.position.x, contact.state.position.z),
+      target,
+    );
+    nearVector(contact.state.velocity, { x: 0, y: 1.5, z: 0 });
+  }
+});
+
+test("boarding support bridges from a platform but never lifts a floor-level player under a cart", () => {
+  for (const direction of directions) {
+    const support: TramSupport = { direction, carIndex: 0 };
+    const time = stoppedTime(direction);
+    const point = onCar(support, time, { across: 0, height: 0 });
+    near(walkingSupportHeight(point, point, time), 0);
+    near(
+      walkingSupportHeight(
+        point,
+        onCar(support, time, { height: TRAM_PLATFORM_HEIGHT }),
+        time,
+      ),
+      TRAM_DECK_HEIGHT,
+    );
+    near(
+      walkingSupportHeight(point, onCar(support, time, { height: 0.4 }), time),
+      0,
+    );
+  }
+});
+
+test("deck velocity follows the faster timetable and is zero at a stop", () => {
+  for (const direction of directions) {
+    const support: TramSupport = { direction, carIndex: 1 };
+    const stopped = stoppedTime(direction);
+    nearVector(tramSurfaceVelocity(onCar(support, stopped), support, stopped), {
+      x: 0,
+      y: 0,
+      z: 0,
+    });
+    const time = movingTime(direction);
+    const velocity = tramSurfaceVelocity(onCar(support, time), support, time);
+    assert.ok(Math.hypot(velocity.x, velocity.z) > 18);
+    const epsilon = 1e-4;
+    const before = onCar(support, time - epsilon);
+    const after = onCar(support, time + epsilon);
+    nearVector(
+      velocity,
+      {
+        x: (after.x - before.x) / (2 * epsilon),
+        y: 0,
+        z: (after.z - before.z) / (2 * epsilon),
+      },
+      1e-7,
+    );
+  }
+});
+
+test("exact carrying preserves car-relative position and walking through curves, stops, and wraps", () => {
   for (const direction of directions) {
     const support: TramSupport = { direction, carIndex: 0 };
     for (const [from, to] of [
       [2, 15],
-      [36, 43],
-      [239, 242],
-      [0, 240],
-      [13, 3613],
+      [TRAM_LEG_SECONDS - 0.1, TRAM_LEG_SECONDS + 1],
+      [TRAM_LAP_SECONDS - 0.5, TRAM_LAP_SECONDS + 2],
+      [13, 13 + TRAM_LAP_SECONDS * 15],
     ]) {
-      const position = positionOnCar(support, from!, {
-        along: 2.1,
-        across: 0.4,
-      });
+      const position = onCar(support, from!, { along: 2.1, across: 0.4 });
+      const surface = tramSurfaceVelocity(position, support, from!);
+      const walking = { x: 0.2, y: -1.1, z: 2.3 };
       const state = {
         position,
-        velocity: tramSurfaceVelocity(position, support, from!),
+        velocity: {
+          x: surface.x + walking.x,
+          y: walking.y,
+          z: surface.z + walking.z,
+        },
       };
-      const before = structuredClone(state);
+      const snapshot = structuredClone(state);
       const carried = carryTramRider(state, support, from!, to!);
       nearVector(
         carried.position,
-        positionOnCar(support, to!, { along: 2.1, across: 0.4 }),
+        onCar(support, to!, { along: 2.1, across: 0.4 }),
         1e-8,
       );
-      nearVector(
-        carried.velocity,
-        tramSurfaceVelocity(carried.position, support, to!),
+      const newSurface = tramSurfaceVelocity(carried.position, support, to!);
+      const relative = rotateY(
+        walking,
+        getTramState(from!, direction).angle -
+          getTramState(to!, direction).angle,
       );
-      assert.ok(isOnTramRoof(carried.position, support, to!));
-      assert.deepEqual(
-        state,
-        before,
-        "carrying does not mutate the input state",
-      );
+      nearVector(carried.velocity, {
+        x: relative.x + newSurface.x,
+        y: relative.y,
+        z: relative.z + newSurface.z,
+      });
+      assert.ok(isOnTramDeck(carried.position, support, to!));
+      assert.deepEqual(state, snapshot);
     }
   }
 });
 
-test("carrying preserves walking velocity relative to the car", () => {
-  const support: TramSupport = { direction: "spinward", carIndex: 2 };
-  const from = 5;
-  const to = 29;
-  const position = positionOnCar(support, from, { along: -1 });
-  const surface = tramSurfaceVelocity(position, support, from);
-  const walking = { x: 0.2, y: -1.1, z: 2.3 };
-  const state = {
-    position,
-    velocity: {
-      x: surface.x + walking.x,
-      y: walking.y,
-      z: surface.z + walking.z,
-    },
-  };
-  const carried = carryTramRider(state, support, from, to);
-  const expectedWalking = rotateY(
-    walking,
-    getTramState(from, "spinward", 2).angle -
-      getTramState(to, "spinward", 2).angle,
-  );
-  const nextSurface = tramSurfaceVelocity(carried.position, support, to);
-  nearVector(carried.velocity, {
-    x: expectedWalking.x + nextSurface.x,
-    y: expectedWalking.y,
-    z: expectedWalking.z + nextSurface.z,
-  });
-  const halfway = carryTramRider(state, support, from, 18);
-  const twoSteps = carryTramRider(halfway, support, 18, to);
-  nearVector(twoSteps.position, carried.position);
-  nearVector(twoSteps.velocity, carried.velocity);
-});
-
-test("descending feet land on stopped and moving roofs with tangential momentum intact", () => {
+test("descending feet land on moving and stopped decks", () => {
   for (const direction of directions) {
-    for (const time of [2, 24]) {
-      const support: TramSupport = { direction, carIndex: 0 };
-      const previous = descendingState(
-        positionOnCar(support, time - 1 / 120, { height: 2.83 }),
+    const support: TramSupport = { direction, carIndex: 0 };
+    for (const time of [stoppedTime(direction), movingTime(direction)]) {
+      const previous = verticalState(
+        onCar(support, time - 1 / 120, { height: TRAM_DECK_HEIGHT + 0.04 }),
+        3,
       );
-      const current = descendingState(
-        positionOnCar(support, time, { height: 2.78 }),
+      const current = verticalState(
+        onCar(support, time, { height: TRAM_DECK_HEIGHT - 0.02 }),
+        3,
       );
       const surface = tramSurfaceVelocity(current.position, support, time);
       current.velocity.x += surface.x;
       current.velocity.z += surface.z;
-      const collision = resolveTramCollision(
+      const contact = resolveTramCollision(
         previous,
         current,
         time - 1 / 120,
         time,
         null,
       );
-      assert.deepEqual(collision.support, support);
-      assert.equal(collision.pushed, false);
+      assert.deepEqual(contact.support, support);
+      assert.equal(contact.grounded, true);
+      assert.equal(contact.pushed, false);
+      nearVector(contact.state.velocity, surface);
       near(
-        Math.hypot(collision.state.position.x, collision.state.position.z),
-        ROOF_RADIUS,
+        Math.hypot(contact.state.position.x, contact.state.position.z),
+        DECK_RADIUS,
       );
-      nearVector(collision.state.velocity, { ...surface, y: 0.2 });
     }
   }
 });
 
-test("roof support allows walking and releases at the side or end", () => {
+test("walking from a stopped deck onto its platform releases the cart without falling", () => {
   const support: TramSupport = { direction: "spinward", carIndex: 0 };
-  const time = 3;
-  const previous = descendingState(positionOnCar(support, time));
-  const walking = descendingState(
-    positionOnCar(support, time, { along: 2, across: 0.6, height: 2.79 }),
+  const time = 2;
+  const previous = verticalState(onCar(support, time));
+  const current = verticalState(
+    atAngle(0, TRAM_PLATFORM_ACROSS, TRAM_PLATFORM_HEIGHT),
   );
-  const supported = resolveTramCollision(
-    previous,
-    walking,
-    time,
-    time,
-    support,
-  );
-  assert.deepEqual(supported.support, support);
-  near(
-    Math.hypot(supported.state.position.x, supported.state.position.z),
-    ROOF_RADIUS,
-  );
+  current.velocity.y = -2;
+  const contact = resolveTramCollision(previous, current, time, time, support);
+  assert.equal(contact.support, null);
+  assert.equal(contact.grounded, true);
+  assert.equal(contact.pushed, false);
+  nearVector(contact.state.position, current.position);
+});
+
+test("walking off an unsupported deck edge releases support and falls without a sideways teleport", () => {
+  const support: TramSupport = { direction: "spinward", carIndex: 0 };
+  const time = movingTime("spinward");
+  const previous = verticalState(onCar(support, time));
   for (const offset of [
     { along: TRAM_LENGTH / 2 + 0.2 },
     { across: TRAM_WIDTH / 2 + 0.2 },
   ]) {
-    const offRoof = descendingState(positionOnCar(support, time, offset));
-    assert.equal(isOnTramRoof(offRoof.position, support, time), false);
-    const released = resolveTramCollision(
-      previous,
-      offRoof,
-      time,
-      time,
-      support,
-    );
-    assert.equal(released.support, null);
-    assert.equal(released.pushed, false);
-  }
-});
-
-test("a jump retains its velocity and cannot be pulled back onto a roof", () => {
-  for (const direction of directions) {
-    const support: TramSupport = { direction, carIndex: 0 };
-    const time = 23;
-    const previous = descendingState(positionOnCar(support, time));
-    const current = descendingState(
-      positionOnCar(support, time, { height: 2.85 }),
-      -8,
-    );
-    const collision = resolveTramCollision(
+    const current = verticalState(onCar(support, time, offset));
+    const contact = resolveTramCollision(
       previous,
       current,
-      time - 1 / 120,
+      time,
       time,
       support,
     );
-    assert.equal(collision.support, null);
-    assert.equal(collision.pushed, false);
-    assert.equal(collision.state, current);
+    assert.equal(contact.support, null);
+    assert.equal(contact.grounded, false);
+    assert.equal(contact.pushed, false);
+    assert.equal(contact.state, current);
   }
 });
 
-test("front impacts push players to the nearest side on either track", () => {
-  for (const direction of directions) {
-    const support: TramSupport = { direction, carIndex: 0 };
-    const time = 24;
-    for (const across of [-0.5, 0, 0.5]) {
-      const previous = descendingState(
-        positionOnCar(support, time - 1 / 120, {
-          along: 4.5,
-          across,
-          height: 0,
-        }),
-      );
-      const current = descendingState(
-        positionOnCar(support, time, { along: 4.2, across, height: 0 }),
-      );
-      const collision = resolveTramCollision(
-        previous,
-        current,
-        time - 1 / 120,
-        time,
-        null,
-      );
-      assert.equal(collision.pushed, true);
-      assert.equal(collision.support, null);
-      const trackY = (direction === "spinward" ? 1 : -1) * TRAM_TRACK_ACROSS;
-      const side = across === 0 ? -Math.sign(trackY) : Math.sign(across);
-      near(
-        collision.state.position.y - trackY,
-        side * (TRAM_WIDTH / 2 + PLAYER_RADIUS + 0.1),
-      );
-      near(collision.state.velocity.y, side * 3.5);
-      near(
-        Math.hypot(collision.state.position.x, collision.state.position.z),
-        FLOOR_RADIUS,
-      );
-    }
-  }
-});
-
-test("a swept side impact cannot tunnel through a car", () => {
+test("jumping from a deck or station cannot get pulled back onto the surface", () => {
   const support: TramSupport = { direction: "spinward", carIndex: 0 };
-  const time = 3;
-  const previous = descendingState(
-    positionOnCar(support, time, { across: -2, height: 1 }),
-  );
-  const current = descendingState(
-    positionOnCar(support, time, { across: 2, height: 1 }),
-  );
-  const collision = resolveTramCollision(previous, current, time, time, null);
-  assert.equal(collision.pushed, true);
-  assert.ok(collision.state.position.y > TRAM_TRACK_ACROSS + TRAM_WIDTH / 2);
-  assert.ok(collision.state.velocity.y > 0);
-});
-
-test("jumping onto a parked car blocks penetration without kicking the player away", () => {
-  for (const direction of directions) {
-    const support: TramSupport = { direction, carIndex: 0 };
-    const time = direction === "spinward" ? 3 : 23;
-    assert.equal(getTramState(time, direction).stopped, true);
-    const side = direction === "spinward" ? -1 : 1;
-    const previous = descendingState(
-      positionOnCar(support, time, { across: side * 1.5, height: 2.45 }),
-      -3,
+  for (const across of [TRAM_TRACK_ACROSS, TRAM_PLATFORM_ACROSS]) {
+    const previous = verticalState(atAngle(0, across, TRAM_DECK_HEIGHT));
+    const current = verticalState(
+      atAngle(0, across, TRAM_DECK_HEIGHT + 0.04),
+      -8,
     );
-    const current = descendingState(
-      positionOnCar(support, time, { across: side * 1.25, height: 2.5 }),
-      -3,
+    const contact = resolveTramCollision(
+      previous,
+      current,
+      2,
+      2 + 1 / 120,
+      support,
     );
-    current.velocity.y = -side * 2;
-    const collision = resolveTramCollision(previous, current, time, time, null);
-    assert.equal(collision.pushed, false);
-    assert.equal(collision.support, null);
-    const trackY =
-      direction === "spinward" ? TRAM_TRACK_ACROSS : -TRAM_TRACK_ACROSS;
-    near(
-      Math.abs(collision.state.position.y - trackY),
-      TRAM_WIDTH / 2 + PLAYER_RADIUS + 0.1,
-    );
-    nearVector(collision.state.velocity, current.velocity);
-    near(
-      Math.hypot(collision.state.position.x, collision.state.position.z),
-      FLOOR_RADIUS - 2.5,
-    );
-
-    // The same rising contact against a moving car still shoves clear.
-    const movingTime = direction === "spinward" ? 24 : 4;
-    assert.ok(getTramState(movingTime, direction).speed > 0.5);
-    const movingPrevious = {
-      ...previous,
-      position: positionOnCar(support, movingTime - 1 / 120, {
-        across: side * 1.5,
-        height: 2.45,
-      }),
-    };
-    const movingCurrent = descendingState(
-      positionOnCar(support, movingTime, { across: side * 1.25, height: 2.5 }),
-      -3,
-    );
-    movingCurrent.velocity.y = -side * 2;
-    const movingHit = resolveTramCollision(
-      movingPrevious,
-      movingCurrent,
-      movingTime - 1 / 120,
-      movingTime,
-      null,
-    );
-    assert.equal(movingHit.pushed, true);
-    near(movingHit.state.velocity.y, side * 3.5);
+    assert.equal(contact.support, null);
+    assert.equal(contact.grounded, false);
+    assert.equal(contact.pushed, false);
+    assert.equal(contact.state, current);
   }
 });
 
-test("an eight-metre-per-second jump can mount a parked roof from the promenade side", () => {
+test("a jump from the promenade can land on the open cart deck", () => {
   const support: TramSupport = { direction: "spinward", carIndex: 0 };
   let state: MotionState = {
-    position: positionOnCar(support, 1, { across: -1.5, height: 0 }),
-    velocity: { x: -8, y: 2, z: 0 },
+    position: onCar(support, 1, { across: -1.8, height: 0 }),
+    velocity: { x: -4, y: 2, z: 0 },
   };
   let landed = false;
   const step = 1 / 120;
   for (let index = 0; index < 180 && !landed; index++) {
     const from = 1 + index * step;
     const current = stepFreeFlight(state, step);
-    const collision = resolveTramCollision(
+    const contact = resolveTramCollision(
       state,
       current,
       from,
       from + step,
       null,
     );
-    assert.equal(
-      collision.pushed,
-      false,
-      "a parked car does not kick a mounting jump away",
-    );
-    state = collision.state;
-    landed = collision.support !== null;
+    state = contact.state;
+    landed = contact.support !== null;
   }
   assert.ok(landed);
-  assert.ok(isOnTramRoof(state.position, support, 2.5));
 });
 
-test("only body overlap causes a shove, without grounding people above or away from a car", () => {
-  const support: TramSupport = { direction: "spinward", carIndex: 0 };
-  const time = 3;
-  for (const offset of [
-    { height: 3.1 },
-    { across: 3, height: 0 },
-    { along: 10, height: 0 },
-  ]) {
-    const state = descendingState(positionOnCar(support, time, offset), -1);
-    const collision = resolveTramCollision(state, state, time, time, null);
-    assert.equal(collision.pushed, false);
-    assert.equal(collision.support, null);
-    assert.equal(collision.state, state);
+test("players below moving carts are pushed clear on both tracks", () => {
+  for (const direction of directions) {
+    const support: TramSupport = { direction, carIndex: 0 };
+    const time = movingTime(direction);
+    for (const across of [-0.5, 0, 0.5]) {
+      const previous = verticalState(
+        onCar(support, time - 1 / 120, { along: 4.5, across, height: 0 }),
+      );
+      const current = verticalState(
+        onCar(support, time, { along: 4.2, across, height: 0 }),
+      );
+      const contact = resolveTramCollision(
+        previous,
+        current,
+        time - 1 / 120,
+        time,
+        null,
+      );
+      const track =
+        direction === "spinward" ? TRAM_TRACK_ACROSS : -TRAM_TRACK_ACROSS;
+      const side = across === 0 ? -Math.sign(track) : Math.sign(across);
+      assert.equal(contact.pushed, true);
+      assert.equal(contact.grounded, true);
+      assert.equal(contact.support, null);
+      near(
+        contact.state.position.y - track,
+        side * (TRAM_WIDTH / 2 + PLAYER_RADIUS + 0.1),
+      );
+      near(contact.state.velocity.y, side * 3.5);
+    }
   }
-  // Feet below the chassis but a head inside it still count as a body impact.
-  const low = descendingState(positionOnCar(support, time, { height: -0.5 }));
-  assert.equal(resolveTramCollision(low, low, time, time, null).pushed, true);
-  const below = descendingState(positionOnCar(support, time, { height: -2 }));
-  assert.equal(
-    resolveTramCollision(below, below, time, time, null).pushed,
-    false,
-  );
+});
+
+test("open carts do not block a walker at platform height or a body above the deck", () => {
+  const support: TramSupport = { direction: "spinward", carIndex: 0 };
+  for (const height of [TRAM_DECK_HEIGHT, 1.5, 3]) {
+    const state = verticalState(onCar(support, 2, { height }));
+    const contact = resolveTramCollision(state, state, 2, 2, null);
+    assert.equal(contact.pushed, false);
+    assert.equal(contact.grounded, height === TRAM_DECK_HEIGHT);
+  }
+});
+
+test("a swept under-deck side impact cannot tunnel through a cart", () => {
+  const support: TramSupport = { direction: "spinward", carIndex: 0 };
+  const previous = verticalState(onCar(support, 2, { across: -2, height: 0 }));
+  const current = verticalState(onCar(support, 2, { across: 2, height: 0 }));
+  const contact = resolveTramCollision(previous, current, 2, 2, null);
+  assert.equal(contact.pushed, true);
+  assert.ok(contact.state.position.y > TRAM_TRACK_ACROSS + TRAM_WIDTH / 2);
 });
 
 test("the opposite side of a track does not collide at the angular wrap seam", () => {
-  const support: TramSupport = { direction: "spinward", carIndex: 0 };
-  const time = 24;
-  const tramAngle = getTramState(time, "spinward").angle;
-  const radius = FLOOR_RADIUS;
-  const position = {
-    x: Math.cos(tramAngle + Math.PI) * radius,
-    y: TRAM_TRACK_ACROSS,
-    z: Math.sin(tramAngle + Math.PI) * radius,
-  };
-  const state = { position, velocity: { x: 0, y: 0, z: 0 } };
-  const collision = resolveTramCollision(
+  const time = movingTime("spinward");
+  const angle = getTramState(time, "spinward").angle + Math.PI;
+  const state = verticalState(atAngle(angle, TRAM_TRACK_ACROSS));
+  const contact = resolveTramCollision(
     state,
     state,
     time - 0.01,
     time + 0.01,
     null,
   );
-  assert.equal(collision.pushed, false);
-  assert.equal(collision.support, null);
+  assert.equal(contact.pushed, false);
+  assert.equal(contact.support, null);
 });

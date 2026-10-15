@@ -6,22 +6,30 @@ import {
 } from "./physics.ts";
 import {
   getTramState,
+  TRAM_STATION_ANGLE,
+  TRAM_STATION_COUNT,
   TRAM_TRACK_ACROSS,
   TRAMS_PER_DIRECTION,
   type TramDirection,
 } from "./tram-motion.ts";
 
 export const TRAM_LENGTH = 8;
-export const TRAM_WIDTH = 2.05;
-/** Height of the roof above the habitat deck, measured at the player's feet. */
-export const TRAM_ROOF_HEIGHT = 2.8;
+export const TRAM_WIDTH = 2.4;
+export const TRAM_DECK_HEIGHT = 0.55;
+export const TRAM_PLATFORM_HEIGHT = 0.55;
+export const TRAM_PLATFORM_ACROSS = 6.6;
+export const TRAM_PLATFORM_WIDTH = 2.2;
+export const TRAM_PLATFORM_LENGTH = 16;
 export const PLAYER_RADIUS = 0.3;
 export const PLAYER_BODY_HEIGHT = 1.7;
 
-const ROOF_RADIUS = FLOOR_RADIUS - TRAM_ROOF_HEIGHT;
+const DECK_RADIUS = FLOOR_RADIUS - TRAM_DECK_HEIGHT;
 const FOOT_MARGIN = 0.12;
-const ROOF_TOLERANCE = 0.15;
-const CAR_BASE_HEIGHT = 0.2;
+const DECK_TOLERANCE = 0.15;
+const CAR_BASE_HEIGHT = 0.1;
+const RAMP_INNER_ACROSS = 3.4;
+const RAMP_OUTER_ACROSS = 5.5;
+const RAMP_HALF_LENGTH = 1.55;
 const EPSILON = 1e-8;
 
 export interface TramSupport {
@@ -33,6 +41,7 @@ export interface TramCollision {
   state: MotionState;
   support: TramSupport | null;
   pushed: boolean;
+  grounded: boolean;
 }
 
 function trackAcross(direction: TramDirection): number {
@@ -48,7 +57,7 @@ function footprint(position: Vec3, support: TramSupport, time: number) {
   return {
     along:
       angleDifference(Math.atan2(position.z, position.x), tram.angle) *
-      ROOF_RADIUS,
+      DECK_RADIUS,
     across: position.y - trackAcross(support.direction),
   };
 }
@@ -65,6 +74,55 @@ function height(position: Vec3): number {
   return FLOOR_RADIUS - Math.hypot(position.x, position.z);
 }
 
+/** Walkable station platforms and their promenade-facing access ramps. */
+export function stationSupportHeight(position: Vec3): number {
+  const angle = Math.atan2(position.z, position.x);
+  const across = Math.abs(position.y);
+  for (let station = 0; station < TRAM_STATION_COUNT; station++) {
+    const along =
+      Math.abs(angleDifference(angle, station * TRAM_STATION_ANGLE)) *
+      FLOOR_RADIUS;
+    if (
+      along <= TRAM_PLATFORM_LENGTH / 2 + EPSILON &&
+      across >= TRAM_PLATFORM_ACROSS - TRAM_PLATFORM_WIDTH / 2 - EPSILON &&
+      across <=
+        TRAM_PLATFORM_ACROSS + TRAM_PLATFORM_WIDTH / 2 + FOOT_MARGIN + EPSILON
+    ) {
+      return TRAM_PLATFORM_HEIGHT;
+    }
+    if (
+      along <= RAMP_HALF_LENGTH + EPSILON &&
+      across >= RAMP_INNER_ACROSS &&
+      across <= RAMP_OUTER_ACROSS
+    ) {
+      return (
+        (TRAM_PLATFORM_HEIGHT * (across - RAMP_INNER_ACROSS)) /
+        (RAMP_OUTER_ACROSS - RAMP_INNER_ACROSS)
+      );
+    }
+  }
+  return 0;
+}
+
+/** Keep a level boarding step across the small platform-to-cart gap. */
+export function walkingSupportHeight(
+  position: Vec3,
+  previousPosition: Vec3,
+  simTime: number,
+): number {
+  const stationHeight = stationSupportHeight(position);
+  if (height(previousPosition) >= TRAM_DECK_HEIGHT - 0.12) {
+    for (const direction of ["spinward", "antispinward"] as const) {
+      for (let carIndex = 0; carIndex < TRAMS_PER_DIRECTION; carIndex++) {
+        if (inFootprint(position, { direction, carIndex }, simTime)) {
+          return Math.max(stationHeight, TRAM_DECK_HEIGHT);
+        }
+      }
+    }
+  }
+  return stationHeight;
+}
+
 /** Positive speed points down toward the deck. */
 function downwardSpeed(state: MotionState): number {
   const radius = Math.hypot(state.position.x, state.position.z);
@@ -75,16 +133,16 @@ function downwardSpeed(state: MotionState): number {
     : 0;
 }
 
-function pinToRoof(state: MotionState): MotionState {
+function pinToHeight(state: MotionState, supportHeight: number): MotionState {
   const radius = Math.hypot(state.position.x, state.position.z);
   const outwardX = state.position.x / radius;
   const outwardZ = state.position.z / radius;
   const normalSpeed = state.velocity.x * outwardX + state.velocity.z * outwardZ;
   return {
     position: {
-      x: outwardX * ROOF_RADIUS,
+      x: outwardX * (FLOOR_RADIUS - supportHeight),
       y: state.position.y,
-      z: outwardZ * ROOF_RADIUS,
+      z: outwardZ * (FLOOR_RADIUS - supportHeight),
     },
     velocity: {
       x: state.velocity.x - normalSpeed * outwardX,
@@ -94,7 +152,7 @@ function pinToRoof(state: MotionState): MotionState {
   };
 }
 
-/** Velocity relative to the habitat of the roof under this foot point. */
+/** Velocity relative to the habitat of the car deck under this foot point. */
 export function tramSurfaceVelocity(
   position: Vec3,
   support: TramSupport,
@@ -147,22 +205,21 @@ export function carryTramRider(
   };
 }
 
-export function isOnTramRoof(
+export function isOnTramDeck(
   position: Vec3,
   support: TramSupport,
   time: number,
 ): boolean {
   return (
-    Math.abs(height(position) - TRAM_ROOF_HEIGHT) <= ROOF_TOLERANCE &&
+    Math.abs(height(position) - TRAM_DECK_HEIGHT) <= DECK_TOLERANCE &&
     inFootprint(position, support, time)
   );
 }
 
 /**
- * Resolve walking and jumping against car roofs and bodies. The player is a
- * foot point with a short upright body. Body impacts move the player sideways
- * toward the nearest clear side of the track, rather than trapping them under
- * a moving car. This runs at the player's fixed physics step.
+ * Resolve walking and jumping against open cart decks and station surfaces.
+ * Contacts below a cart's deck push the player to the nearest clear track side.
+ * Above the deck there is no enclosing body to block boarding or walking.
  */
 export function resolveTramCollision(
   previous: MotionState,
@@ -171,14 +228,19 @@ export function resolveTramCollision(
   toTime: number,
   support: TramSupport | null,
 ): TramCollision {
-  // A jump must release the roof even if its first step is inside the small
+  // A jump must release the deck even if its first step is inside the small
   // support tolerance. Walking off an edge also releases support immediately.
   if (
     support &&
-    isOnTramRoof(current.position, support, toTime) &&
+    isOnTramDeck(current.position, support, toTime) &&
     downwardSpeed(current) >= -0.05
   ) {
-    return { state: pinToRoof(current), support, pushed: false };
+    return {
+      state: pinToHeight(current, TRAM_DECK_HEIGHT),
+      support,
+      pushed: false,
+      grounded: true,
+    };
   }
 
   const previousHeight = height(previous.position);
@@ -186,21 +248,30 @@ export function resolveTramCollision(
   const descending =
     currentHeight <= previousHeight + EPSILON &&
     downwardSpeed(current) >= -0.05;
+  const restingOnDeck =
+    Math.abs(currentHeight - TRAM_DECK_HEIGHT) <= 0.03 &&
+    downwardSpeed(current) >= -0.05;
 
   for (const direction of ["spinward", "antispinward"] as const) {
     for (let carIndex = 0; carIndex < TRAMS_PER_DIRECTION; carIndex++) {
       const car: TramSupport = { direction, carIndex };
       if (
-        descending &&
-        previousHeight >= TRAM_ROOF_HEIGHT - 0.04 &&
-        currentHeight <= TRAM_ROOF_HEIGHT + 0.03 &&
+        (restingOnDeck ||
+          (descending &&
+            previousHeight >= TRAM_DECK_HEIGHT - 0.04 &&
+            currentHeight <= TRAM_DECK_HEIGHT + 0.03)) &&
         inFootprint(current.position, car, toTime)
       ) {
-        return { state: pinToRoof(current), support: car, pushed: false };
+        return {
+          state: pinToHeight(current, TRAM_DECK_HEIGHT),
+          support: car,
+          pushed: false,
+          grounded: true,
+        };
       }
 
       if (
-        currentHeight >= TRAM_ROOF_HEIGHT - EPSILON ||
+        currentHeight >= TRAM_DECK_HEIGHT - EPSILON ||
         currentHeight + PLAYER_BODY_HEIGHT <= CAR_BASE_HEIGHT
       ) {
         continue;
@@ -213,7 +284,7 @@ export function resolveTramCollision(
       // Relative positions use each endpoint's tram angle, including motion
       // through the 0/2π seam.
       const before = footprint(previous.position, car, fromTime);
-      const halfCircumference = Math.PI * ROOF_RADIUS;
+      const halfCircumference = Math.PI * DECK_RADIUS;
       if (local.along - before.along > halfCircumference) {
         before.along += 2 * halfCircumference;
       } else if (local.along - before.along < -halfCircumference) {
@@ -236,7 +307,7 @@ export function resolveTramCollision(
       const clearAcross = side * (expandedHalfWidth + 0.1);
       const tram = getTramState(toTime, direction, carIndex);
       // While mounting a parked car, block the body without kicking the jump
-      // away. The player's lateral momentum can carry them over the roof once
+      // away. The player's lateral momentum can carry them over the deck once
       // their feet clear it. Moving cars and ground contacts still shove aside.
       const mountingParkedCar =
         downwardSpeed(current) < -0.05 &&
@@ -257,11 +328,30 @@ export function resolveTramCollision(
         },
         support: null,
         pushed: !mountingParkedCar,
+        grounded: currentHeight <= 0.03 && downwardSpeed(current) >= -0.05,
       };
     }
   }
 
-  return { state: current, support: null, pushed: false };
+  for (const supportHeight of [stationSupportHeight(current.position), 0]) {
+    const resting =
+      Math.abs(currentHeight - supportHeight) <= 0.03 &&
+      downwardSpeed(current) >= -0.05;
+    const landing =
+      descending &&
+      previousHeight >= supportHeight - 0.04 &&
+      currentHeight <= supportHeight + 0.03;
+    if (resting || landing) {
+      return {
+        state: pinToHeight(current, supportHeight),
+        support: null,
+        pushed: false,
+        grounded: true,
+      };
+    }
+  }
+
+  return { state: current, support: null, pushed: false, grounded: false };
 }
 
 function segmentHitsRectangle(
