@@ -4,7 +4,7 @@ A small, browser-based playground inside a rotating space habitat. Walk around t
 
 The world is built from procedural geometry: varied buildings, trees, farmland, water, structural ribs, 56 static residents, and your own suited body and launcher. Earth has code-drawn continents; Earth, the Moon, and the Sun follow an analytic orbital sky. There are no texture packs, downloaded models, external fonts, accounts, or backend services.
 
-**Version 0.3.0 · Desktop first · MIT licensed**
+**Version 0.3.1 · Desktop first · MIT licensed**
 
 **[Play in your browser →](https://torus.classroom-fox.com)** · [Source](https://github.com/DanielHaggstrom/stanford-torus) · [Build checks](https://github.com/DanielHaggstrom/stanford-torus/actions)
 

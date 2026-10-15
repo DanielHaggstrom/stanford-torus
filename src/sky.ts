@@ -74,7 +74,7 @@ function bodyMaterial(clouds: boolean): THREE.ShaderMaterial {
 }
 
 function earthGeometry(): THREE.SphereGeometry {
-  const geometry = new THREE.SphereGeometry(1, 192, 96);
+  const geometry = new THREE.SphereGeometry(1, 384, 192);
   const positions = geometry.getAttribute("position");
   const colors = new Float32Array(positions.count * 3);
   const color = new THREE.Color();
