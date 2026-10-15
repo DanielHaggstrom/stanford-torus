@@ -8,8 +8,12 @@ import {
   MOON_DISTANCE,
   ORBIT_PERIOD_SECONDS,
   ORBIT_RADIUS,
+  ORBIT_START_PHASE,
+  getOrbitMapState,
   getOrbitState,
+  habitatGeocentricPosition,
   inertialToHabitat,
+  inertialToSkyFrame,
   isInEarthShadow,
   solarVisibility,
   SUN_DISTANCE,
@@ -152,8 +156,8 @@ test("Moon keeps its geocentric distance but has station-relative parallax", () 
 });
 
 test("Earth's map rotates once per sidereal day independently of habitat rotation", () => {
-  const state = getOrbitState(EARTH_SIDEREAL_DAY);
-  const expected = inertialToHabitat({ x: 1, y: 0, z: 0 }, EARTH_SIDEREAL_DAY);
+  const state = getOrbitState(EARTH_SIDEREAL_DAY, "inertial");
+  const expected = getOrbitState(0, "inertial").earthPrimeDirection;
   near(state.earthPrimeDirection.x, expected.x);
   near(state.earthPrimeDirection.y, expected.y);
   near(state.earthPrimeDirection.z, expected.z);
@@ -162,6 +166,117 @@ test("Earth's map rotates once per sidereal day independently of habitat rotatio
     state.earthPrimeDirection.y * state.earthNorthDirection.y +
     state.earthPrimeDirection.z * state.earthNorthDirection.z;
   near(dot, 0);
+});
+
+test("the opening subpoint is sunlit Europe rather than equatorial Africa", () => {
+  const state = getOrbitState(0, "inertial");
+  const observer = {
+    x: -state.earthPosition.x / ORBIT_RADIUS,
+    y: -state.earthPosition.y / ORBIT_RADIUS,
+    z: -state.earthPosition.z / ORBIT_RADIUS,
+  };
+  const north = state.earthNorthDirection;
+  const prime = state.earthPrimeDirection;
+  const east = {
+    x: north.y * prime.z - north.z * prime.y,
+    y: north.z * prime.x - north.x * prime.z,
+    z: north.x * prime.y - north.y * prime.x,
+  };
+  const dot = (a: typeof observer, b: typeof observer) =>
+    a.x * b.x + a.y * b.y + a.z * b.z;
+  near((Math.asin(dot(observer, north)) * 180) / Math.PI, 45);
+  near(
+    (Math.atan2(dot(observer, east), dot(observer, prime)) * 180) / Math.PI,
+    10,
+  );
+  assert.ok(
+    dot(observer, state.sunDirection) > 0.7,
+    "Europe is well inside daylight",
+  );
+  const habitat = habitatGeocentricPosition(0);
+  near((Math.asin(habitat.y / ORBIT_RADIUS) * 180) / Math.PI, 45);
+  near(Math.atan2(-habitat.z, habitat.x), 0);
+});
+
+test("the opening Moon clears Earth's limb and stays in its sunlit orbital plane", () => {
+  for (const seconds of [0, 30, 60, 120]) {
+    const state = getOrbitState(seconds, "inertial");
+    const distance = Math.hypot(
+      state.moonPosition.x,
+      state.moonPosition.y,
+      state.moonPosition.z,
+    );
+    const separation = Math.acos(
+      (state.earthPosition.x * state.moonPosition.x +
+        state.earthPosition.y * state.moonPosition.y +
+        state.earthPosition.z * state.moonPosition.z) /
+        (ORBIT_RADIUS * distance),
+    );
+    assert.ok(
+      separation > state.earthAngularRadius + state.moonAngularRadius + 0.1,
+    );
+    const illuminatedFraction =
+      (1 -
+        (state.moonPosition.x * state.moonSunDirection.x +
+          state.moonPosition.y * state.moonSunDirection.y +
+          state.moonPosition.z * state.moonSunDirection.z) /
+          distance) /
+      2;
+    assert.ok(illuminatedFraction > 0.9, "the opening Moon is gibbous");
+    assert.equal(state.moonSunlight, 1);
+    const normal = state.moonNorthDirection;
+    const planeDistance =
+      (state.moonPosition.x - state.earthPosition.x) * normal.x +
+      (state.moonPosition.y - state.earthPosition.y) * normal.y +
+      (state.moonPosition.z - state.earthPosition.z) * normal.z;
+    near(planeDistance, 0, 1e-6);
+  }
+});
+
+test("inertial views remove habitat spin from every body and orientation", () => {
+  const vectorKeys = [
+    "earthPosition",
+    "moonPosition",
+    "sunPosition",
+    "sunDirection",
+    "earthNorthDirection",
+    "earthPrimeDirection",
+    "moonSunDirection",
+    "moonNorthDirection",
+  ] as const;
+  for (const seconds of [0, 7, 400, 86400]) {
+    const spinning = getOrbitState(seconds);
+    const inertial = getOrbitState(seconds, "inertial");
+    for (const key of vectorKeys) {
+      const unspun = rotateY(spinning[key], ANGULAR_SPEED * seconds);
+      const tolerance = Math.max(
+        1e-9,
+        Math.hypot(inertial[key].x, inertial[key].y, inertial[key].z) * 1e-14,
+      );
+      near(unspun.x, inertial[key].x, tolerance);
+      near(unspun.y, inertial[key].y, tolerance);
+      near(unspun.z, inertial[key].z, tolerance);
+    }
+    const stars = inertialToSkyFrame({ x: 1, y: 2, z: 3 }, seconds, "inertial");
+    const initialStars = inertialToSkyFrame(
+      { x: 1, y: 2, z: 3 },
+      0,
+      "inertial",
+    );
+    assert.deepEqual(stars, initialStars, "starfield orientation stays fixed");
+  }
+});
+
+test("the orbit map shares the absolute opening phase and orbital clock", () => {
+  for (const seconds of [0, 100, ORBIT_PERIOD_SECONDS, 86400]) {
+    const map = getOrbitMapState(seconds);
+    near(map.orbitalPhase, getOrbitState(seconds).orbitalPhase);
+    near(map.orbitPeriodSeconds, ORBIT_PERIOD_SECONDS);
+    assert.ok(Number.isFinite(map.sunAngle));
+    assert.ok(Number.isFinite(map.moonAngle));
+    assert.ok(Math.abs(map.moonOutOfPlane) <= Math.PI / 2);
+  }
+  near(getOrbitMapState(0).orbitalPhase, ORBIT_START_PHASE);
 });
 
 test("simplified continent geometry recognizes major land and ocean locations", () => {

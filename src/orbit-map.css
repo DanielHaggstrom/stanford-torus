@@ -1,0 +1,245 @@
+#orbit-map-panel {
+  position: fixed;
+  z-index: 4;
+  right: 4.5%;
+  bottom: 145px;
+  width: 302px;
+  max-height: calc(100dvh - 255px);
+  overflow: auto;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #102027ed;
+  backdrop-filter: blur(16px);
+  scrollbar-width: thin;
+  scrollbar-color: #596d61 transparent;
+}
+.orbit-map-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.orbit-map-heading .eyebrow {
+  margin: 0 0 7px;
+  font-size: 7px;
+  letter-spacing: 1.4px;
+}
+.orbit-map-heading h2 {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.3;
+  letter-spacing: -0.3px;
+  font-weight: 450;
+}
+.orbit-map-live {
+  flex-shrink: 0;
+  padding-top: 2px;
+  color: var(--lime);
+  font-size: 7px;
+  letter-spacing: 0.7px;
+}
+.orbit-map-live.in-shadow {
+  color: #a7b8cf;
+}
+.orbit-map-chart {
+  display: block;
+  width: 100%;
+  margin-top: 5px;
+  overflow: visible;
+  user-select: none;
+  touch-action: manipulation;
+}
+.orbit-map-axis {
+  stroke: #b5c9b5;
+  stroke-opacity: 0.07;
+  stroke-dasharray: 2 5;
+}
+.orbit-map-track {
+  fill: none;
+  stroke: #c5dfa2;
+  stroke-width: 3;
+  stroke-opacity: 0.8;
+}
+.orbit-map-shadow {
+  fill: none;
+  stroke: #5a6b80;
+  stroke-width: 4;
+}
+.orbit-map-atmosphere {
+  fill: none;
+  stroke: #8ed0dc;
+  stroke-opacity: 0.45;
+  stroke-width: 1.1;
+}
+.orbit-map-earth-label,
+.orbit-map-earth-size,
+.orbit-map-scale {
+  text-anchor: middle;
+  fill: #cbdae0;
+  font-size: 8px;
+  letter-spacing: 1.6px;
+}
+.orbit-map-earth-size {
+  fill: #afc1c9;
+  font-size: 7px;
+  letter-spacing: 0.3px;
+}
+.orbit-map-scale {
+  fill: var(--muted);
+  font-size: 6px;
+  letter-spacing: 1px;
+}
+.orbit-map-zero {
+  fill: var(--muted);
+  font-size: 7px;
+}
+.orbit-map-prograde {
+  fill: none;
+  stroke: var(--lime);
+  stroke-opacity: 0.7;
+  stroke-width: 1.5;
+}
+.orbit-map-sun {
+  fill: #ffdb9a;
+  stroke: #ffdb9a;
+  stroke-width: 1;
+}
+.orbit-map-destination > circle:first-child {
+  fill: #102027;
+  stroke: #f5d2a5;
+  stroke-width: 1.5;
+}
+.orbit-map-destination > circle:last-child {
+  fill: #f5d2a5;
+}
+.orbit-map-habitat > circle:first-child {
+  fill: var(--lime);
+  stroke: #102027;
+  stroke-width: 2;
+}
+.orbit-map-habitat > circle:last-child {
+  fill: #183321;
+}
+.orbit-map-hit-area {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 34;
+  pointer-events: stroke;
+  cursor: crosshair;
+}
+.orbit-map-legend {
+  display: flex;
+  justify-content: space-between;
+  gap: 9px;
+  padding: 10px 0 16px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 16px;
+  color: var(--muted);
+  font-size: 8px;
+}
+.orbit-map-legend > span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.orbit-map-legend i {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+.orbit-map-current-key {
+  background: var(--lime);
+}
+.orbit-map-target-key {
+  border: 1px solid #f5d2a5;
+}
+.orbit-map-legend .orbit-map-shadow-key {
+  width: 10px;
+  height: 3px;
+  border-radius: 1px;
+  background: #73859c;
+}
+.orbit-map-range-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+}
+.orbit-map-range-label output {
+  color: #f5d2a5;
+  font-variant-numeric: tabular-nums;
+}
+.orbit-map-range {
+  display: block;
+  width: 100%;
+  margin: 13px 0 7px;
+  accent-color: #d9efaa;
+  cursor: pointer;
+}
+.orbit-map-instructions {
+  margin: 0;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.6;
+}
+.orbit-map-skip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 9px;
+  width: 100%;
+  margin-top: 14px;
+  padding: 12px 10px;
+  border: 1px solid #d9efaa;
+  border-radius: 3px;
+  background: #d9efaa;
+  color: #1c2920;
+  font-size: 10px;
+  font-weight: 600;
+}
+.orbit-map-skip:hover {
+  background: #e5fac0;
+}
+.orbit-map-skip [data-preview] {
+  margin-left: auto;
+  font-size: 9px;
+  font-weight: 450;
+  font-variant-numeric: tabular-nums;
+}
+.orbit-map-skip > span:last-child {
+  font-size: 15px;
+}
+.orbit-map-note {
+  margin: 11px 0 0;
+  color: #a0b1ac;
+  font-size: 8px;
+  line-height: 1.7;
+}
+@media (max-width: 760px) {
+  #orbit-map-panel {
+    right: 18px;
+    bottom: 132px;
+    width: 266px;
+    padding: 15px;
+    max-height: calc(100dvh - 235px);
+  }
+}
+@media (max-height: 700px) and (min-width: 761px) {
+  #orbit-map-panel {
+    right: 22px;
+    bottom: 130px;
+    width: 275px;
+    padding: 15px;
+    max-height: calc(100dvh - 225px);
+  }
+  .orbit-map-chart {
+    width: 83%;
+    margin: 0 auto;
+  }
+  .orbit-map-legend {
+    padding-top: 6px;
+    padding-bottom: 10px;
+    margin-bottom: 12px;
+  }
+}

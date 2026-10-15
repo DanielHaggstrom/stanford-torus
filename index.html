@@ -65,7 +65,7 @@
         Step inside <span>↗</span>
       </button>
       <button id="tour-button" class="secondary-button">
-        Explore from orbit <span>↗</span>
+        Orbit view <span><kbd>O</kbd> ↗</span>
       </button>
       <div class="intro-facts">
         <div>
@@ -93,9 +93,7 @@
     <aside id="flight-panel" class="flight-panel" hidden>
       <div class="panel-top">
         <span class="eyebrow">EXPLORER SYSTEMS</span
-        ><button id="exit-button" class="text-button" title="Return to title">
-          ↗ Orbit
-        </button>
+        ><span class="view-shortcut"><kbd>O</kbd> Orbit view</span>
       </div>
       <div class="mode-switch" role="group" aria-label="Movement mode">
         <button id="walk-button" class="selected">Walk <kbd>1</kbd></button
@@ -127,6 +125,16 @@
         ><button id="clear-button">Clear <kbd>C</kbd></button>
       </div>
     </aside>
+    <div id="orbit-view-hint" class="orbit-view-hint" hidden>
+      <p class="eyebrow">INERTIAL OBSERVER</p>
+      <span><kbd>O</kbd> Return to habitat</span
+      ><small>Drag to inspect · Scroll to zoom</small>
+    </div>
+    <aside
+      id="orbit-map-panel"
+      hidden
+      aria-label="Habitat orbital navigation"
+    ></aside>
     <div id="crosshair" class="crosshair" hidden>
       <span></span><span></span>
     </div>
@@ -178,7 +186,8 @@
       <span><kbd>W A S D</kbd> move</span
       ><span><kbd>SPACE</kbd> jump / rise</span><span><kbd>F</kbd> charge</span
       ><span><kbd>C</kbd> clear</span><span><kbd>, .</kbd> time</span
-      ><span><kbd>R</kbd> reset</span><span><kbd>ESC</kbd> release mouse</span>
+      ><span><kbd>O</kbd> orbit view</span><span><kbd>R</kbd> reset</span
+      ><span><kbd>ESC</kbd> release mouse</span>
     </div>
     <dialog id="help-dialog">
       <button id="close-help" class="dialog-close" aria-label="Close controls">
@@ -205,8 +214,13 @@
         <dd>Simulation speed: 1×, 5×, 10×</dd>
         <dt>R / Esc</dt>
         <dd>Reset position / release mouse</dd>
-        <dt>Orbit view</dt>
-        <dd>Drag to rotate, scroll to zoom</dd>
+        <dt>O</dt>
+        <dd>Toggle inertial orbit view; drag to inspect, scroll to zoom</dd>
+        <dt>Orbit map</dt>
+        <dd>
+          Select a destination and skip forward; landed probes stay, airborne
+          probes clear
+        </dd>
       </dl>
       <p>
         The dotted line predicts a probe’s path in the rotating frame. Watch it
@@ -216,7 +230,7 @@
         A compact, stylized Stanford torus. Buildings are scenery; the floor and
         side rails provide collision. Flight uses a powered, stabilized
         thruster. The sky follows an approximate circular Earth orbit at 2,000
-        km, inclined by 28.5°. Earth, Moon and Sun directions, apparent sizes
+        km, inclined by 51.6°. Earth, Moon and Sun directions, apparent sizes
         and eclipses share the simulation clock. Charging uses real seconds. Esc
         pauses exploration; switching away from this browser tab pauses the
         simulation.

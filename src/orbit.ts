@@ -4,11 +4,11 @@ import type { Vec3 } from "./physics.ts";
 /**
  * A deliberately small analytic sky model, in metres and SI seconds.
  *
- * The habitat follows a circular 2,000 km orbit, inclined 28.5° to the equator.
+ * The habitat follows a circular 2,000 km orbit, inclined 51.6° to the equator.
  * Its fixed spin axis is tilted 18° from the orbit normal (no LVLH yaw).
  * Equatorial inertial +Y is north; +X is the vernal equinox and -Z is east.
- * t=0 is a demonstration equinox, with the habitat at the ascending node,
- * Greenwich facing +X, and the Moon 125° along its inclined circular orbit.
+ * t=0 is a demonstration equinox, over Europe (45°N, 10°E). The Moon begins
+ * 150° along its ecliptic-inclined circular orbit: sunlit and clear of Earth.
  * These are scenario phases, not a claim to reproduce today's ephemeris.
  *
  * Earth/Moon/Sun radii, Earth GM, and mean periods: NASA NSSDC fact sheets.
@@ -18,7 +18,7 @@ import type { Vec3 } from "./physics.ts";
 export const EARTH_RADIUS = 6_371_000;
 export const EARTH_GM = 3.986004418e14;
 export const ORBIT_ALTITUDE_KM = 2000;
-export const ORBIT_INCLINATION_DEG = 28.5;
+export const ORBIT_INCLINATION_DEG = 51.6;
 export const HABITAT_AXIS_TILT_DEG = 18;
 export const ORBIT_RADIUS = EARTH_RADIUS + ORBIT_ALTITUDE_KM * 1000;
 export const ORBIT_PERIOD_SECONDS =
@@ -36,13 +36,27 @@ export const YEAR_SECONDS = 365.256 * 86400;
 const TAU = Math.PI * 2;
 const INCLINATION = (ORBIT_INCLINATION_DEG * Math.PI) / 180;
 const AXIS_TILT = (HABITAT_AXIS_TILT_DEG * Math.PI) / 180;
+// Choose a northern ascending-leg position, then rotate that plane so the
+// opening habitat longitude is zero in equatorial inertial coordinates.
+const START_ARGUMENT = Math.asin(Math.sin(Math.PI / 4) / Math.sin(INCLINATION));
+const ASCENDING_NODE = -Math.atan2(
+  Math.sin(START_ARGUMENT) * Math.cos(INCLINATION),
+  Math.cos(START_ARGUMENT),
+);
+const EARTH_PRIME_AT_EPOCH = (-10 * Math.PI) / 180;
+const MOON_ARGUMENT_AT_EPOCH = (150 * Math.PI) / 180;
+export const ORBIT_START_PHASE = START_ARGUMENT / TAU;
+export const ORBIT_ASCENDING_NODE_DEG = (ASCENDING_NODE * 180) / Math.PI;
+
+/** Renderer coordinates retain the fixed habitat attitude in either frame. */
+export type OrbitFrame = "habitat" | "inertial";
 
 export interface OrbitState {
-  /** Apparent body centres relative to the habitat, in the rotating frame. */
+  /** Apparent body centres relative to the habitat, in the requested frame. */
   earthPosition: Vec3;
   moonPosition: Vec3;
   sunPosition: Vec3;
-  /** Unit vector from the habitat toward the Sun, in the rotating frame. */
+  /** Unit vector from the habitat toward the Sun, in the requested frame. */
   sunDirection: Vec3;
   earthNorthDirection: Vec3;
   earthPrimeDirection: Vec3;
@@ -58,6 +72,16 @@ export interface OrbitState {
   orbitalPhase: number;
   orbitPeriodSeconds: number;
   altitudeKm: number;
+}
+
+export interface OrbitMapState {
+  /** Absolute prograde angle / 2π, including the chosen opening phase. */
+  orbitalPhase: number;
+  /** Earth-centred directions projected onto the habitat's orbital plane. */
+  sunAngle: number;
+  moonAngle: number;
+  moonOutOfPlane: number;
+  orbitPeriodSeconds: number;
 }
 
 function rotateX(vector: Vec3, angle: number): Vec3 {
@@ -97,12 +121,89 @@ function unit(vector: Vec3): Vec3 {
   };
 }
 
-/** Enter the orbital plane, apply the fixed axis tilt, then undo habitat spin. */
-export function inertialToHabitat(vector: Vec3, simSeconds: number): Vec3 {
-  return rotateY(
-    rotateZ(rotateX(vector, -INCLINATION), AXIS_TILT),
-    -ANGULAR_SPEED * simSeconds,
+function inertialToOrbitPlane(vector: Vec3): Vec3 {
+  return rotateX(rotateY(vector, -ASCENDING_NODE), -INCLINATION);
+}
+
+/** Enter the renderer's fixed attitude; only the habitat frame undoes spin. */
+export function inertialToSkyFrame(
+  vector: Vec3,
+  simSeconds: number,
+  frame: OrbitFrame = "habitat",
+): Vec3 {
+  const fixed = rotateZ(
+    rotateY(inertialToOrbitPlane(vector), -START_ARGUMENT),
+    AXIS_TILT,
   );
+  return frame === "habitat"
+    ? rotateY(fixed, -ANGULAR_SPEED * simSeconds)
+    : fixed;
+}
+
+/** Enter the fixed attitude, then undo habitat spin for first-person views. */
+export function inertialToHabitat(vector: Vec3, simSeconds: number): Vec3 {
+  return inertialToSkyFrame(vector, simSeconds, "habitat");
+}
+
+function orbitalPhaseAt(simSeconds: number): number {
+  return (
+    (((ORBIT_START_PHASE + simSeconds / ORBIT_PERIOD_SECONDS) % 1) + 1) % 1
+  );
+}
+
+export function habitatGeocentricPosition(simSeconds: number): Vec3 {
+  const orbitAngle = TAU * orbitalPhaseAt(simSeconds);
+  return rotateY(
+    rotateX(
+      {
+        x: ORBIT_RADIUS * Math.cos(orbitAngle),
+        y: 0,
+        z: -ORBIT_RADIUS * Math.sin(orbitAngle),
+      },
+      INCLINATION,
+    ),
+    ASCENDING_NODE,
+  );
+}
+
+function sunGeocentricPosition(simSeconds: number): Vec3 {
+  const angle = (TAU * simSeconds) / YEAR_SECONDS;
+  return rotateX(
+    {
+      x: SUN_DISTANCE * Math.cos(angle),
+      y: 0,
+      z: -SUN_DISTANCE * Math.sin(angle),
+    },
+    EARTH_OBLIQUITY,
+  );
+}
+
+function moonGeocentricPosition(simSeconds: number): Vec3 {
+  const angle =
+    MOON_ARGUMENT_AT_EPOCH + (TAU * simSeconds) / MOON_PERIOD_SECONDS;
+  return rotateX(
+    rotateX(
+      {
+        x: MOON_DISTANCE * Math.cos(angle),
+        y: 0,
+        z: -MOON_DISTANCE * Math.sin(angle),
+      },
+      MOON_INCLINATION,
+    ),
+    EARTH_OBLIQUITY,
+  );
+}
+
+export function getOrbitMapState(simSeconds: number): OrbitMapState {
+  const sun = inertialToOrbitPlane(sunGeocentricPosition(simSeconds));
+  const moon = inertialToOrbitPlane(moonGeocentricPosition(simSeconds));
+  return {
+    orbitalPhase: orbitalPhaseAt(simSeconds),
+    sunAngle: Math.atan2(-sun.z, sun.x),
+    moonAngle: Math.atan2(-moon.z, moon.x),
+    moonOutOfPlane: Math.atan2(moon.y, Math.hypot(moon.x, moon.z)),
+    orbitPeriodSeconds: ORBIT_PERIOD_SECONDS,
+  };
 }
 
 /** Exact point-source sphere/ray eclipse test. Directions need not be unit. */
@@ -156,63 +257,40 @@ export function solarVisibility(
   return edge * edge * (3 - 2 * edge);
 }
 
-export function getOrbitState(simSeconds: number): OrbitState {
-  const orbitalPhase = (((simSeconds / ORBIT_PERIOD_SECONDS) % 1) + 1) % 1;
-  const orbitAngle = orbitalPhase * TAU;
-  const habitat = rotateX(
-    {
-      x: ORBIT_RADIUS * Math.cos(orbitAngle),
-      y: 0,
-      z: -ORBIT_RADIUS * Math.sin(orbitAngle),
-    },
-    INCLINATION,
-  );
-  const sunAngle = (TAU * simSeconds) / YEAR_SECONDS;
-  const sun = rotateX(
-    {
-      x: SUN_DISTANCE * Math.cos(sunAngle),
-      y: 0,
-      z: -SUN_DISTANCE * Math.sin(sunAngle),
-    },
-    EARTH_OBLIQUITY,
-  );
-  const moonAngle =
-    (125 * Math.PI) / 180 + (TAU * simSeconds) / MOON_PERIOD_SECONDS;
-  const moon = rotateX(
-    rotateX(
-      {
-        x: MOON_DISTANCE * Math.cos(moonAngle),
-        y: 0,
-        z: -MOON_DISTANCE * Math.sin(moonAngle),
-      },
-      MOON_INCLINATION,
-    ),
-    EARTH_OBLIQUITY,
-  );
-  const earthPosition = inertialToHabitat(
-    { x: -habitat.x, y: -habitat.y, z: -habitat.z },
-    simSeconds,
-  );
-  const sunPosition = inertialToHabitat(subtract(sun, habitat), simSeconds);
-  const moonPosition = inertialToHabitat(subtract(moon, habitat), simSeconds);
-  const moonSunDirection = unit(
-    inertialToHabitat(subtract(sun, moon), simSeconds),
-  );
+export function getOrbitState(
+  simSeconds: number,
+  frame: OrbitFrame = "habitat",
+): OrbitState {
+  const orbitalPhase = orbitalPhaseAt(simSeconds);
+  const habitat = habitatGeocentricPosition(simSeconds);
+  const sun = sunGeocentricPosition(simSeconds);
+  const moon = moonGeocentricPosition(simSeconds);
+  const transform = (vector: Vec3) =>
+    inertialToSkyFrame(vector, simSeconds, frame);
+  const earthPosition = transform({
+    x: -habitat.x,
+    y: -habitat.y,
+    z: -habitat.z,
+  });
+  const sunPosition = transform(subtract(sun, habitat));
+  const moonPosition = transform(subtract(moon, habitat));
+  const moonSunDirection = unit(transform(subtract(sun, moon)));
   const sunlight = solarVisibility(habitat, sun);
   return {
     earthPosition,
     moonPosition,
     sunPosition,
     sunDirection: unit(sunPosition),
-    earthNorthDirection: inertialToHabitat({ x: 0, y: 1, z: 0 }, simSeconds),
-    earthPrimeDirection: inertialToHabitat(
-      rotateY({ x: 1, y: 0, z: 0 }, (TAU * simSeconds) / EARTH_SIDEREAL_DAY),
-      simSeconds,
+    earthNorthDirection: transform({ x: 0, y: 1, z: 0 }),
+    earthPrimeDirection: transform(
+      rotateY(
+        { x: 1, y: 0, z: 0 },
+        EARTH_PRIME_AT_EPOCH + (TAU * simSeconds) / EARTH_SIDEREAL_DAY,
+      ),
     ),
     moonSunDirection,
-    moonNorthDirection: inertialToHabitat(
+    moonNorthDirection: transform(
       rotateX({ x: 0, y: 1, z: 0 }, EARTH_OBLIQUITY + MOON_INCLINATION),
-      simSeconds,
     ),
     moonSunlight: solarVisibility(moon, sun),
     sunlight,

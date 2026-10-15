@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { isLand } from "./continents";
-import { getOrbitState, inertialToHabitat } from "./orbit";
-import type { OrbitState } from "./orbit";
+import { getOrbitState, inertialToSkyFrame } from "./orbit";
+import type { OrbitFrame, OrbitState } from "./orbit";
 
 export interface SkyHandle {
   scene: THREE.Scene;
@@ -9,6 +9,7 @@ export interface SkyHandle {
   update: (
     simSeconds: number,
     viewCamera: THREE.PerspectiveCamera,
+    frame?: OrbitFrame,
   ) => OrbitState;
   dispose: () => void;
 }
@@ -297,8 +298,8 @@ export function buildSky(): SkyHandle {
   return {
     scene,
     camera,
-    update(simSeconds, viewCamera) {
-      const state = getOrbitState(simSeconds);
+    update(simSeconds, viewCamera, frame = "habitat") {
+      const state = getOrbitState(simSeconds, frame);
       camera.quaternion.copy(viewCamera.quaternion);
       camera.fov = viewCamera.fov;
       camera.aspect = viewCamera.aspect;
@@ -365,8 +366,8 @@ export function buildSky(): SkyHandle {
         state.moonSunDirection.z,
       );
       moon.material.uniforms.sunlight.value = state.moonSunlight;
-      const sx = inertialToHabitat({ x: 1, y: 0, z: 0 }, simSeconds);
-      const sy = inertialToHabitat({ x: 0, y: 1, z: 0 }, simSeconds);
+      const sx = inertialToSkyFrame({ x: 1, y: 0, z: 0 }, simSeconds, frame);
+      const sy = inertialToSkyFrame({ x: 0, y: 1, z: 0 }, simSeconds, frame);
       earthX.set(sx.x, sx.y, sx.z);
       earthY.set(sy.x, sy.y, sy.z);
       earthZ.crossVectors(earthX, earthY);

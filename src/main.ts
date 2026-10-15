@@ -16,6 +16,13 @@ import type { MotionState } from "./physics";
 import { buildSky } from "./sky";
 import { buildAvatar } from "./avatar";
 import { updateMotionRamp, walkSpeed, flightSpeed } from "./movement";
+import { buildOrbitMap } from "./orbit-map";
+import {
+  getOrbitState,
+  ORBIT_PERIOD_SECONDS,
+  ORBIT_START_PHASE,
+} from "./orbit";
+import { nextOrbitOccurrence } from "./time-skip";
 import "./style.css";
 
 const element = <T extends HTMLElement = HTMLElement>(id: string) =>
@@ -40,8 +47,17 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.12;
 const scene = new THREE.Scene();
 scene.background = null;
+function overviewFov(aspect: number) {
+  return THREE.MathUtils.clamp(
+    THREE.MathUtils.radToDeg(
+      2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(55)) / aspect),
+    ),
+    65,
+    105,
+  );
+}
 const camera = new THREE.PerspectiveCamera(
-  60,
+  overviewFov(innerWidth / innerHeight),
   innerWidth / innerHeight,
   0.08,
   6000,
@@ -51,24 +67,30 @@ scene.background = null;
 const sky = buildSky();
 const avatar = buildAvatar();
 renderer.autoClear = false;
+const overviewPosition = new THREE.Vector3(600, 220, 300);
+const overviewUp = new THREE.Vector3(-0.26, 0.805, 0.53).normalize();
+const overviewTarget = new THREE.Vector3();
+camera.position.copy(overviewPosition);
+camera.up.copy(overviewUp);
 const controls = new OrbitControls(camera, canvas);
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
-controls.enableDamping = true;
-controls.dampingFactor = 0.055;
 controls.minDistance = 270;
 controls.maxDistance = 1100;
 controls.enablePan = false;
-controls.autoRotate = !reducedMotion.matches;
-controls.autoRotateSpeed = 0.45;
-camera.position.set(395, 325, 420);
+controls.autoRotate = false;
+controls.enableDamping = false;
 controls.target.set(0, 0, 0);
+controls.update();
 
 type View = "intro" | "explore" | "orbit";
 let view: View = "intro";
+let hasEnteredHabitat = false;
 let flight = false;
 let grounded = true;
-let yaw = 0;
-let pitch = 0.12;
+const OPENING_YAW = Math.PI;
+const OPENING_PITCH = 1.1;
+let yaw = OPENING_YAW;
+let pitch = OPENING_PITCH;
 let player: MotionState = {
   position: { x: FLOOR_RADIUS, y: 0, z: 0 },
   velocity: { x: 0, y: 0, z: 0 },
@@ -188,6 +210,7 @@ interface Probe {
   stopped: boolean;
 }
 const probes: Probe[] = [];
+const orbitMap = buildOrbitMap(element("orbit-map-panel"), skipToOrbitPhase);
 
 function notice(message: string) {
   const box = element("notice");
@@ -308,8 +331,8 @@ function resetPlayer() {
   };
   grounded = true;
   motionRamp = 0;
-  yaw = 0;
-  pitch = 0.12;
+  yaw = OPENING_YAW;
+  pitch = OPENING_PITCH;
   updateCamera();
   cancelCharge();
   clearProbes(false);
@@ -363,19 +386,30 @@ async function captureMouse() {
 }
 
 function enterHabitat() {
+  if (view !== "explore") {
+    overviewPosition.copy(camera.position);
+    overviewUp.copy(camera.up);
+    overviewTarget.copy(controls.target);
+  }
   view = "explore";
   controls.enabled = false;
+  scene.rotation.y = 0;
   document.body.className = "playing";
   element("intro").hidden = true;
   element("scene-caption").hidden = true;
   element("flight-panel").hidden = false;
   element("key-guide").hidden = false;
+  element("orbit-map-panel").hidden = true;
+  element("orbit-view-hint").hidden = true;
   camera.fov = 72;
   camera.clearViewOffset();
   camera.updateProjectionMatrix();
-  resetPlayer();
+  if (!hasEnteredHabitat) {
+    resetPlayer();
+    hasEnteredHabitat = true;
+  } else updateCamera();
   element("enter-button").blur();
-  element("exit-button").blur();
+  element("tour-button").blur();
   void captureMouse();
   showPause();
 }
@@ -390,23 +424,65 @@ function orbitView() {
   document.body.className = "orbiting";
   element("intro").hidden = true;
   element("scene-caption").hidden = true;
-  element("flight-panel").hidden = false;
+  element("flight-panel").hidden = true;
   element("resume-hint").hidden = true;
   element("crosshair").hidden = true;
   element("key-guide").hidden = true;
+  element("orbit-map-panel").hidden = false;
+  element("orbit-view-hint").hidden = false;
   controls.enabled = true;
-  camera.up.set(0, 1, 0);
-  camera.position.set(370, 345, 410);
-  camera.fov = 60;
+  camera.up.copy(overviewUp);
+  camera.position.copy(overviewPosition);
+  camera.fov = overviewFov(camera.aspect);
   camera.clearViewOffset();
   camera.updateProjectionMatrix();
-  controls.target.set(0, 0, 0);
+  controls.target.copy(overviewTarget);
+  controls.update();
+  orbitMap.update(elapsed);
+  canvas.focus({ preventScroll: true });
   ghost.visible =
     ghostDots.visible =
     ghostDotBorder.visible =
     impactMarker.visible =
       false;
-  notice("Orbit view · Drag to rotate, scroll to zoom");
+  notice("Inertial orbit view · O returns to the habitat");
+}
+
+function toggleOrbitView() {
+  if (view === "orbit") enterHabitat();
+  else orbitView();
+}
+
+function skipToOrbitPhase(targetPhase: number) {
+  if (view !== "orbit") return;
+  const previousTime = elapsed;
+  elapsed = nextOrbitOccurrence(
+    elapsed,
+    targetPhase,
+    ORBIT_PERIOD_SECONDS,
+    ORBIT_START_PHASE,
+  );
+  cancelCharge();
+  keys.clear();
+  motionRamp = 0;
+  fixedAccumulator = 0;
+  let removed = 0;
+  for (let i = probes.length - 1; i >= 0; i--) {
+    if (!probes[i].stopped) {
+      removeProbe(probes[i]);
+      probes.splice(i, 1);
+      removed++;
+    }
+  }
+  player.velocity = { x: 0, y: 0, z: 0 };
+  grounded =
+    Math.hypot(player.position.x, player.position.z) >= FLOOR_RADIUS - 0.001;
+  updateLauncherUI();
+  updateTelemetry();
+  orbitMap.update(elapsed);
+  notice(
+    `Skipped forward ${((elapsed - previousTime) / 60).toFixed(1)} min · ${removed} airborne probes cleared`,
+  );
 }
 
 function currentShot(speed = effectiveLaunchSpeed()): MotionState {
@@ -602,9 +678,6 @@ function simulatePlayer(dt: number) {
 
 element("enter-button").addEventListener("click", enterHabitat);
 element("tour-button").addEventListener("click", orbitView);
-element("exit-button").addEventListener("click", () =>
-  view === "orbit" ? enterHabitat() : orbitView(),
-);
 element("walk-button").addEventListener("click", () => {
   setFlight(false);
   element("walk-button").blur();
@@ -697,6 +770,11 @@ document.addEventListener("mousemove", (event) => {
 });
 document.addEventListener("keydown", (event) => {
   if (help.open || event.ctrlKey || event.metaKey || event.altKey) return;
+  if (event.code === "KeyO") {
+    event.preventDefault();
+    if (!event.repeat) toggleOrbitView();
+    return;
+  }
   const tag = (event.target as HTMLElement)?.tagName;
   if (tag === "INPUT" || tag === "SELECT" || tag === "BUTTON") return;
   if (["Comma", "Period"].includes(event.code)) {
@@ -704,12 +782,16 @@ document.addEventListener("keydown", (event) => {
     stepTimeRate(event.code === "Period" ? 1 : -1);
     return;
   }
-  if (view !== "explore") return;
-  if (event.code === "KeyC" && !event.repeat) {
+  if (
+    (view === "explore" || view === "orbit") &&
+    event.code === "KeyC" &&
+    !event.repeat
+  ) {
     cancelCharge();
     clearProbes();
     return;
   }
+  if (view !== "explore") return;
   if (event.code === "Escape" && pointerUnavailable) {
     cancelCharge();
     fallbackResumed = false;
@@ -765,11 +847,12 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener("resize", () => {
   renderer.setSize(innerWidth, innerHeight);
   camera.aspect = innerWidth / innerHeight;
+  camera.fov = view === "explore" ? 72 : overviewFov(camera.aspect);
   if (view === "intro" && innerWidth > 700)
     camera.setViewOffset(
       innerWidth,
       innerHeight,
-      -innerWidth * 0.19,
+      -innerWidth * 0.12,
       0,
       innerWidth,
       innerHeight,
@@ -815,7 +898,7 @@ function frame(now: number) {
   if (document.hidden) return;
   realElapsed += dt;
   const active = explorationActive();
-  const simulationRunning = !help.open && (active || view !== "explore");
+  const simulationRunning = !help.open && (active || view === "orbit");
   const simulationDelta = simulationRunning ? dt * simulationRate : 0;
   elapsed += simulationDelta;
   if (active && chargeSource) {
@@ -824,7 +907,7 @@ function frame(now: number) {
   }
   if (!active && chargeSource) cancelCharge();
   recoil *= Math.exp(-13 * dt);
-  if (active) {
+  if (active || (view === "orbit" && hasEnteredHabitat && simulationRunning)) {
     fixedAccumulator += simulationDelta;
     while (fixedAccumulator >= STEP) {
       simulatePlayer(STEP);
@@ -859,7 +942,7 @@ function frame(now: number) {
         trailAttribute.needsUpdate = true;
         probe.trail.geometry.setDrawRange(0, probe.trailPoints.length);
       }
-      if (probe.age > 32) {
+      if (!probe.stopped && probe.age > 32) {
         removeProbe(probe);
         probes.splice(i, 1);
         updateLauncherUI();
@@ -871,8 +954,16 @@ function frame(now: number) {
     refreshGhost();
     ghostRefresh = 0;
   }
-  const orbit = sky.update(elapsed, camera);
-  habitat.update(elapsed, orbit);
+  const inertialView = view !== "explore";
+  scene.rotation.y = inertialView
+    ? (elapsed * ANGULAR_SPEED) % (Math.PI * 2)
+    : 0;
+  const orbit = sky.update(
+    elapsed,
+    camera,
+    inertialView ? "inertial" : "habitat",
+  );
+  habitat.update(elapsed, inertialView ? getOrbitState(elapsed) : orbit);
   avatar.update({
     deltaSeconds: dt,
     movementSpeed: Math.hypot(
@@ -892,6 +983,7 @@ function frame(now: number) {
   telemetryClock += dt;
   if (telemetryClock > 0.1) {
     updateTelemetry();
+    if (view === "orbit") orbitMap.update(elapsed);
     const totalSeconds = Math.floor(elapsed);
     element("simulation-clock").textContent =
       `T+${String(Math.floor(totalSeconds / 3600)).padStart(2, "0")}:${String(Math.floor(totalSeconds / 60) % 60).padStart(2, "0")}:${String(totalSeconds % 60).padStart(2, "0")}`;
@@ -916,7 +1008,7 @@ if (innerWidth > 700)
   camera.setViewOffset(
     innerWidth,
     innerHeight,
-    -innerWidth * 0.19,
+    -innerWidth * 0.12,
     0,
     innerWidth,
     innerHeight,
