@@ -5,6 +5,7 @@ import {
   EARTH_RADIUS,
   EARTH_SIDEREAL_DAY,
   HABITAT_AXIS_TILT_DEG,
+  HABITAT_OPENING_EARTH_LATITUDE_DEG,
   MOON_DISTANCE,
   ORBIT_PERIOD_SECONDS,
   ORBIT_RADIUS,
@@ -74,21 +75,59 @@ test("sky positions account for station spin without an extra orbital-frame yaw"
     quarter.earthPosition,
     (ANGULAR_SPEED * ORBIT_PERIOD_SECONDS) / 4,
   );
-  near(unspun.x, 0, 1e-5);
-  near(unspun.y, 0, 1e-5);
-  near(unspun.z, ORBIT_RADIUS, 1e-5);
+  near(
+    (unspun.x * start.earthPosition.x +
+      unspun.y * start.earthPosition.y +
+      unspun.z * start.earthPosition.z) /
+      ORBIT_RADIUS ** 2,
+    0,
+  );
 });
 
-test("the habitat axis tilts Earth's sky track away from the ring plane", () => {
-  const start = getOrbitState(0);
-  const offset = Math.asin(-start.earthPosition.y / ORBIT_RADIUS);
-  near((offset * 180) / Math.PI, HABITAT_AXIS_TILT_DEG);
+test("Earth starts near the ring plane and moves close to either end of its axis", () => {
+  const start = getOrbitState(0, "inertial").earthPosition;
+  const latitude = (position: typeof start) =>
+    (Math.asin(position.y / ORBIT_RADIUS) * 180) / Math.PI;
+  near(latitude(start), HABITAT_OPENING_EARTH_LATITUDE_DEG);
+  near(latitude(start), -5);
+  assert.ok(start.x < 0, "Earth opens on the intended side of the habitat");
+  near(start.z, 0, 1e-6);
+
+  const quarter = getOrbitState(ORBIT_PERIOD_SECONDS / 4, "inertial").earthPosition;
+  const half = getOrbitState(ORBIT_PERIOD_SECONDS / 2, "inertial").earthPosition;
+  const threeQuarters = getOrbitState(
+    (3 * ORBIT_PERIOD_SECONDS) / 4,
+    "inertial",
+  ).earthPosition;
+  assert.ok(Math.abs(latitude(quarter)) > 80, "Earth approaches the spin axis");
   assert.ok(
-    offset > 0.25,
-    "Earth starts visibly to the side of the ring plane",
+    Math.abs(latitude(threeQuarters)) > 80,
+    "Earth approaches the opposite end of the spin axis",
   );
-  const quarter = getOrbitState(ORBIT_PERIOD_SECONDS / 4);
-  near(quarter.earthPosition.y, 0, 1e-6);
+  near(latitude(quarter), -latitude(threeQuarters));
+  near(half.x, -start.x, 1e-6);
+  near(half.y, -start.y, 1e-6);
+  near(half.z, -start.z, 1e-6);
+});
+
+test("the fixed spin axis is 85 degrees from the orbital normal", () => {
+  for (const seconds of [0, ORBIT_PERIOD_SECONDS / 7, ORBIT_PERIOD_SECONDS / 2]) {
+    const first = getOrbitState(seconds, "inertial").earthPosition;
+    const second = getOrbitState(
+      seconds + ORBIT_PERIOD_SECONDS / 4,
+      "inertial",
+    ).earthPosition;
+    const normal = {
+      x: first.y * second.z - first.z * second.y,
+      y: first.z * second.x - first.x * second.z,
+      z: first.x * second.y - first.y * second.x,
+    };
+    const magnitude = Math.hypot(normal.x, normal.y, normal.z);
+    near(magnitude / ORBIT_RADIUS ** 2, 1);
+    const axisAngle = (Math.acos(Math.abs(normal.y) / magnitude) * 180) / Math.PI;
+    near(axisAngle, HABITAT_AXIS_TILT_DEG);
+    near(axisAngle, 85);
+  }
 });
 
 test("the tilted spinning sky frame preserves distances and handedness", () => {

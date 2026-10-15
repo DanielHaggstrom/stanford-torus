@@ -6,7 +6,7 @@ The source of truth is [`src/orbit.ts`](../src/orbit.ts). [`src/sky.ts`](../src/
 
 ## Scenario and reference values
 
-The habitat follows a circular orbit **2,000 km above a spherical Earth**, inclined **51.6° to Earth's equator**. These are scenario choices. The inclination allows the opening view to look down over Europe without moving the continents or changing the planet's axial tilt. Its fixed spin axis is tilted **18° from the orbit normal**, so Earth starts to one side of the ring plane and traces an oblique path across the sky. Its spin rate is the same rate used for the playable deck's artificial gravity.
+The habitat follows a circular orbit **2,000 km above a spherical Earth**, inclined **51.6° to Earth's equator**. These are scenario choices. The inclination allows the opening view to look down over Europe without moving the continents or changing the planet's axial tilt. Its fixed spin axis is **85° from the orbit normal**, or 5° from the orbital plane. Earth starts just **5° below the ring plane**; its centre then sweeps between **−85° and +85°** from that plane over an orbit. The habitat spins independently, once every roughly **29 seconds**, at the rate used for the playable deck's artificial gravity.
 
 | Quantity                          | Value used               |
 | --------------------------------- | ------------------------ |
@@ -37,7 +37,7 @@ r = Earth radius + altitude = 8,371,000 m
 T = 2π √(r³ / μ) ≈ 7,622.14 s ≈ 127.04 minutes
 ```
 
-Habitat and Moon positions come from inclined circles. The annual solar direction includes Earth's obliquity. Subtracting the habitat's inertial position gives the direction and distance to each body. Those relative vectors rotate into the orbital plane, remove the opening orbital argument to establish the fixed renderer attitude, pass through the fixed 18° tilt about orbital +Z, and then undo the habitat's spin for first-person views. This same frame change applies to all bodies, surface orientations, stars, and sunlight; Earth's lateral placement is consistent with the lighting and eclipses. The habitat axis remains fixed in inertial space: the model does not add an extra turn per orbit to keep the same deck facing Earth.
+Habitat and Moon positions come from inclined circles. The annual solar direction includes Earth's obliquity. Subtracting the habitat's inertial position gives the direction and distance to each body. A fixed orthonormal basis sets the habitat's attitude relative to the opening orbital plane, choosing both the axis tilt and its direction within that plane. First-person views then undo the habitat's spin. This same frame change applies to all bodies, surface orientations, stars, and sunlight. The habitat axis keeps pointing toward the same stars; orbital motion does not turn it to track Earth.
 
 Earth's map rotates once per sidereal day. The Moon's map keeps its near side facing Earth. The star field has fixed inertial directions and therefore appears to turn with the habitat. Player movement over the 420 m habitat does not introduce visible astronomical parallax; orbital motion does change the Moon's apparent position and size.
 
