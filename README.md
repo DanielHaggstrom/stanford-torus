@@ -7,7 +7,7 @@ probes to see how trajectories curve in a rotating reference frame.
 [Build checks](https://github.com/DanielHaggstrom/stanford-torus/actions) ·
 [MIT license](LICENSE)
 
-**Version 0.3.2** · Keyboard and mouse · WebGL 2
+**Version 0.4.0** · Keyboard and mouse · WebGL 2
 
 ## Playing
 
@@ -43,9 +43,15 @@ landed probes remain in place. Your position is preserved and velocity cleared.
 If mouse capture is unavailable, choose **Continue with drag to look** and use F
 or the launch button to fire. Opening **Controls** or hiding the tab pauses time.
 
+Trams run spinward on the mint line and antispinward on the amber line, with six
+stations and automatic stops. Jump onto a car's roof to ride, walk around, or jump
+off. A car hitting you on the track pushes you to the side. Trams follow simulation
+speed and move to their scheduled positions when you skip time.
+
 ## What's included
 
 - Six districts with procedural buildings, trees, farms, water, and static residents.
+- Two tram lines, six stations, automatic stops, and cars you can ride on.
 - Walking, jumping, stabilized flight, and a visible first-person body and launcher.
 - Rotating-frame ballistics, trajectory previews, and floor and side-wall collision.
 - Earth, Moon, Sun, eclipses, adjustable time, and an inertial exterior view with an orbit map.

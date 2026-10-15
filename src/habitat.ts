@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { buildTramSystem } from "./trams";
 
 /** Metres, in the habitat's co-rotating frame. The spin axis is world Y. */
 export const HABITAT_RADIUS = 210;
@@ -598,11 +599,12 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
           new THREE.Vector3(0.035, 1.44, 0.035),
         ),
       });
-      plantTree(
-        angle + 0.013,
-        side * (7.1 + random() * 1.15),
-        district === 4 ? 1.17 : 1,
-      );
+      if (i % 12 !== 0)
+        plantTree(
+          angle + 0.013,
+          side * (5.65 + random() * 0.25),
+          district === 4 ? 1.17 : 1,
+        );
       if (i % 3 !== 0) plantTree(angle + 0.041, side * (19.2 + random()), 0.8);
 
       // Farming and water districts open into gardens; the other districts
@@ -1014,7 +1016,7 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
     if (i % 5 === 2) {
       const side = random() < 0.5 ? -1 : 1;
       const benchAngle = angle + 0.026;
-      const benchAcross = side * 9.3;
+      const benchAcross = side * 6.6;
       placeBox(furniture, benchAngle, benchAcross, 0.55, 2.5, 0.14, 0.7);
       placeBox(
         furniture,
@@ -1058,7 +1060,7 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
     placeBox(dashes, angle, 0, 4.65, 0.2, 0.07, 7.9, district.color);
 
     // Each district has a large geometric navigation sculpture on its lawn.
-    const sculptureAcross = index % 2 === 0 ? -9.0 : 9.0;
+    const sculptureAcross = index % 2 === 0 ? -6.4 : 6.4;
     const pedestal = mesh(
       new THREE.CylinderGeometry(1.4, 1.7, 0.45, 6),
       materials.path,
@@ -1255,11 +1257,14 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
   instances(cylinderGeometry, materials.structure, spokes);
   instances(cylinderGeometry, materials.trim, spokeBraces);
 
+  const trams = buildTramSystem(root, HABITAT_DISTRICTS);
+  trams.update(0);
   let disposed = false;
   return {
     root,
     update(elapsedSeconds, lighting) {
       if (disposed) return;
+      trams.update(elapsedSeconds);
       if (lighting) {
         const daylight = THREE.MathUtils.clamp(lighting.sunlight, 0, 1);
         sunLight.position
@@ -1289,6 +1294,7 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
     dispose() {
       if (disposed) return;
       disposed = true;
+      trams.dispose();
       const geometries = new Set<THREE.BufferGeometry>();
       const ownedMaterials = new Set<THREE.Material>(Object.values(materials));
       root.traverse((object) => {

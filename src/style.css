@@ -392,6 +392,10 @@ a {
   line-height: 1.7;
   margin: 14px 0 20px;
 }
+.flight-panel .tram-status {
+  color: var(--lime);
+  margin-top: -8px;
+}
 .divider {
   border-top: 1px solid var(--line);
   margin-bottom: 22px;

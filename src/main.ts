@@ -29,6 +29,14 @@ import {
   ORBIT_START_PHASE,
 } from "./orbit";
 import { nextOrbitOccurrence } from "./time-skip";
+import { getTramState } from "./tram-motion";
+import {
+  TRAM_ROOF_HEIGHT,
+  carryTramRider,
+  resolveTramCollision,
+  tramSurfaceVelocity,
+} from "./tram-physics";
+import type { TramSupport } from "./tram-physics";
 import "./style.css";
 
 const element = <T extends HTMLElement = HTMLElement>(id: string) =>
@@ -93,6 +101,8 @@ let view: View = "intro";
 let hasEnteredHabitat = false;
 let flight = false;
 let grounded = true;
+let tramSupport: TramSupport | null = null;
+let lastTramPush = -Infinity;
 const OPENING_YAW = Math.PI;
 const OPENING_PITCH = 1.1;
 let yaw = OPENING_YAW;
@@ -338,6 +348,7 @@ function resetPlayer() {
     velocity: { x: 0, y: 0, z: 0 },
   };
   grounded = true;
+  tramSupport = null;
   motionRamp = 0;
   yaw = OPENING_YAW;
   pitch = OPENING_PITCH;
@@ -348,6 +359,7 @@ function resetPlayer() {
 
 function setFlight(enabled: boolean) {
   flight = enabled;
+  if (enabled) tramSupport = null;
   element("walk-button").classList.toggle("selected", !flight);
   element("fly-button").classList.toggle("selected", flight);
   element("mode-description").textContent = flight
@@ -483,6 +495,7 @@ function skipToOrbitPhase(targetPhase: number) {
     }
   }
   player.velocity = { x: 0, y: 0, z: 0 };
+  tramSupport = null;
   grounded =
     Math.hypot(player.position.x, player.position.z) >= FLOOR_RADIUS - 0.001;
   updateLauncherUI();
@@ -618,7 +631,11 @@ function launch(speed = TAP_LAUNCH_SPEED) {
   );
 }
 
-function simulatePlayer(dt: number) {
+function simulatePlayer(dt: number, simTime: number) {
+  const previousState = player;
+  const endTime = simTime + dt;
+  if (tramSupport && grounded && !flight)
+    player = carryTramRider(player, tramSupport, simTime, endTime);
   basis();
   const moveForward =
     Number(keys.has("KeyW") || keys.has("ArrowUp")) -
@@ -657,14 +674,21 @@ function simulatePlayer(dt: number) {
     player = collision.state;
     grounded = collision.hitFloor;
   } else if (grounded) {
+    const surfaceVelocity = tramSupport
+      ? tramSurfaceVelocity(player.position, tramSupport, endTime)
+      : { x: 0, y: 0, z: 0 };
+    velocity.sub(surfaceVelocity);
     const vertical = velocity.dot(up);
     velocity
       .addScaledVector(up, -vertical)
       .lerp(desired, 1 - Math.exp(-12 * dt));
     position.copy(player.position).addScaledVector(velocity, dt);
     const rho = Math.hypot(position.x, position.z);
-    position.x *= FLOOR_RADIUS / rho;
-    position.z *= FLOOR_RADIUS / rho;
+    const supportRadius = FLOOR_RADIUS - (tramSupport ? TRAM_ROOF_HEIGHT : 0);
+    position.x *= supportRadius / rho;
+    position.z *= supportRadius / rho;
+    if (tramSupport)
+      velocity.add(tramSurfaceVelocity(position, tramSupport, endTime));
     player = resolveHabitatCollision(
       { position, velocity },
       { halfWidth: 21.5 },
@@ -674,14 +698,31 @@ function simulatePlayer(dt: number) {
     const lateralVelocity = velocity
       .clone()
       .addScaledVector(up, -velocity.dot(up));
-    velocity.addScaledVector(
-      desired.sub(lateralVelocity),
-      Math.min(0.8 * dt, 1),
-    );
+    if (desired.lengthSq() > 0)
+      velocity.addScaledVector(
+        desired.sub(lateralVelocity),
+        Math.min(0.8 * dt, 1),
+      );
     player = stepFreeFlight({ position: player.position, velocity }, dt);
     const collision = resolveHabitatCollision(player, { halfWidth: 21.5 });
     player = collision.state;
     grounded = collision.hitFloor;
+  }
+  const contact = resolveTramCollision(
+    previousState,
+    player,
+    simTime,
+    endTime,
+    tramSupport,
+  );
+  player = contact.state;
+  tramSupport = flight ? null : contact.support;
+  grounded =
+    tramSupport !== null ||
+    Math.hypot(player.position.x, player.position.z) >= FLOOR_RADIUS - 0.001;
+  if (contact.pushed && endTime - lastTramPush > 1.5) {
+    lastTramPush = endTime;
+    notice("Tram pushed you clear of the track");
   }
 }
 
@@ -833,9 +874,10 @@ document.addEventListener("keydown", (event) => {
     basis();
     player.velocity = velocity
       .copy(player.velocity)
-      .addScaledVector(up, 7)
+      .addScaledVector(up, 8)
       .clone();
     grounded = false;
+    tramSupport = null;
   }
 });
 document.addEventListener("keyup", (event) => {
@@ -871,6 +913,20 @@ window.addEventListener("resize", () => {
 });
 
 function updateTelemetry() {
+  const tramStatus = element("tram-status");
+  tramStatus.hidden = tramSupport === null;
+  if (tramSupport) {
+    const tram = getTramState(
+      elapsed,
+      tramSupport.direction,
+      tramSupport.carIndex,
+    );
+    const stop =
+      HABITAT_DISTRICTS[
+        tram.stopped ? tram.stationIndex : tram.nextStationIndex
+      ];
+    tramStatus.textContent = `${tramSupport.direction === "spinward" ? "Spinward" : "Antispinward"} tram · ${tram.stopped ? "At" : "Next:"} ${stop.name}`;
+  }
   const rho = Math.hypot(player.position.x, player.position.z);
   element("gravity-value").innerHTML =
     `${((ANGULAR_SPEED ** 2 * rho) / GRAVITY).toFixed(2)} <small>g</small>`;
@@ -917,7 +973,7 @@ function frame(now: number) {
   if (active || (view === "orbit" && hasEnteredHabitat && simulationRunning)) {
     fixedAccumulator += simulationDelta;
     while (fixedAccumulator >= STEP) {
-      simulatePlayer(STEP);
+      simulatePlayer(STEP, elapsed - fixedAccumulator);
       fixedAccumulator -= STEP;
     }
   } else {
