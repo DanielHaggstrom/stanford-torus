@@ -13,9 +13,15 @@ export const HABITAT_DISTRICTS = [
   { name: "Starlight Village", angle: (Math.PI * 5) / 3, color: "#bdaee5" },
 ] as const;
 
+/** Lighting supplied by the orbital sky, in the habitat's rotating coordinates. */
+export interface HabitatLighting {
+  sunDirection: { x: number; y: number; z: number };
+  sunlight: number;
+}
+
 export interface HabitatHandle {
   root: THREE.Group;
-  update: (elapsedSeconds: number) => void;
+  update: (elapsedSeconds: number, lighting?: HabitatLighting) => void;
   dispose: () => void;
 }
 
@@ -103,6 +109,28 @@ function strutMatrix(
   );
 }
 
+/** Unit triangular prism: its ridge follows X, and its base lies on Y = 0. */
+function pitchedRoofGeometry(): THREE.BufferGeometry {
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute(
+    "position",
+    new THREE.Float32BufferAttribute(
+      [
+        -0.5, 0, -0.5, 0.5, 0, -0.5, -0.5, 0, 0.5, 0.5, 0, 0.5, -0.5, 1, 0, 0.5,
+        1, 0,
+      ],
+      3,
+    ),
+  );
+  geometry.setIndex([
+    0, 4, 1, 1, 4, 5, 2, 3, 4, 3, 5, 4, 0, 2, 4, 1, 5, 3, 0, 1, 2, 1, 3, 2,
+  ]);
+  const flatGeometry = geometry.toNonIndexed();
+  geometry.dispose();
+  flatGeometry.computeVertexNormals();
+  return flatGeometry;
+}
+
 /** All visuals are generated geometry; there are no image textures or downloaded assets. */
 export function buildHabitat(scene: THREE.Scene): HabitatHandle {
   const root = new THREE.Group();
@@ -143,6 +171,19 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
     trunk: standard("#745d47"),
     leaves: standard("#69a383", { flatShading: true }),
     hedge: standard("#7caa7c"),
+    pitchedRoof: standard("#b77c67", { flatShading: true }),
+    greenhouse: standard("#b3e0d5", {
+      roughness: 0.2,
+      metalness: 0.23,
+      transparent: true,
+      opacity: 0.6,
+      depthWrite: false,
+    }),
+    furniture: standard("#8e725b"),
+    clothing: standard("#e8e9e2"),
+    skin: standard("#e8e9e2", { roughness: 1 }),
+    hair: standard("#e8e9e2", { roughness: 1 }),
+    shoes: standard("#384650"),
     soil: standard("#6c6b50"),
     crops: standard("#a6bd68"),
     structure: standard("#a5bbba", { metalness: 0.55, roughness: 0.38 }),
@@ -213,8 +254,10 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
     return ring;
   };
 
-  add(new THREE.HemisphereLight("#d9f4ff", "#61735b", 2.1));
-  add(new THREE.AmbientLight("#8cabb9", 0.6));
+  const hemisphereLight = add(
+    new THREE.HemisphereLight("#d9f4ff", "#61735b", 2.1),
+  );
+  const ambientLight = add(new THREE.AmbientLight("#8cabb9", 0.6));
   const sunLight = add(new THREE.DirectionalLight("#fff2cf", 2.35));
   sunLight.position.set(350, 600, -400);
 
@@ -236,8 +279,20 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
   const trims: Instance[] = [];
   const roofs: Instance[] = [];
   const roofGardens: Instance[] = [];
+  const pitchedRoofs: Instance[] = [];
+  const greenhouseWalls: Instance[] = [];
+  const greenhouseRoofs: Instance[] = [];
   const trunks: Instance[] = [];
   const leaves: Instance[] = [];
+  const conifers: Instance[] = [];
+  const furniture: Instance[] = [];
+  const peopleClothing: Instance[] = [];
+  const peopleSkin: Instance[] = [];
+  const peopleHair: Instance[] = [];
+  const peopleShoes: Instance[] = [];
+  const peopleArms: Instance[] = [];
+  let peopleCount = 0;
+  let buildingCount = 0;
   const lamps: Instance[] = [];
   const bulbs: Instance[] = [];
   const bedBorders: Instance[] = [];
@@ -282,6 +337,29 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
         new THREE.Vector3(0.13, height * 0.74, 0.13),
       ),
     });
+    const evergreen = random() < 0.27;
+    if (evergreen) {
+      for (let crown = 0; crown < 3; crown++) {
+        conifers.push({
+          matrix: floorMatrix(
+            angle,
+            across,
+            height * (0.68 + crown * 0.22),
+            new THREE.Vector3(
+              (1.3 - crown * 0.27) * variation,
+              (1.8 - crown * 0.2) * variation,
+              (1.3 - crown * 0.27) * variation,
+            ),
+          ),
+          color: new THREE.Color().setHSL(
+            0.39 + random() * 0.035,
+            0.26,
+            0.32 + random() * 0.08,
+          ),
+        });
+      }
+      return;
+    }
     leaves.push({
       matrix: floorMatrix(
         angle,
@@ -299,6 +377,193 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
         0.38 + random() * 0.12,
       ),
     });
+  };
+
+  // Residents use shared low-poly meshes. Their poses are fixed, including
+  // conversations and people sitting on benches; no animation or AI is needed.
+  const shirtPalette = [
+    "#d6a15f",
+    "#78aeb0",
+    "#b98586",
+    "#7794ba",
+    "#e2d9ba",
+    "#9581b0",
+    "#7eaa85",
+  ];
+  const skinPalette = [
+    "#e8bd94",
+    "#c58e68",
+    "#8d5d43",
+    "#f0c9ad",
+    "#ae7755",
+    "#70503e",
+  ];
+  const hairPalette = ["#302c2a", "#664d37", "#b69760", "#a5a6a1", "#5d3e31"];
+  const placePerson = (
+    angle: number,
+    across: number,
+    facing: number,
+    seated = false,
+    pose = 0,
+  ) => {
+    peopleCount++;
+    const scale = 0.9 + random() * 0.16;
+    const anchor = floorMatrix(angle, across, 0.1)
+      .multiply(new THREE.Matrix4().makeRotationY(facing))
+      .scale(new THREE.Vector3(scale, scale, scale));
+    const shirt = shirtPalette[Math.floor(random() * shirtPalette.length)];
+    const skin = skinPalette[Math.floor(random() * skinPalette.length)];
+    const hair = hairPalette[Math.floor(random() * hairPalette.length)];
+    const trousers = random() < 0.5 ? "#405365" : "#736a5c";
+    const part = (
+      collection: Instance[],
+      position: THREE.Vector3,
+      size: THREE.Vector3,
+      color: THREE.ColorRepresentation,
+    ) =>
+      collection.push({
+        matrix: anchor
+          .clone()
+          .multiply(
+            new THREE.Matrix4()
+              .makeScale(size.x, size.y, size.z)
+              .setPosition(position),
+          ),
+        color,
+      });
+    const limb = (
+      from: THREE.Vector3,
+      to: THREE.Vector3,
+      color: THREE.ColorRepresentation,
+      radius = 0.065,
+    ) => {
+      peopleArms.push({
+        matrix: anchor.clone().multiply(strutMatrix(from, to, radius)),
+        color,
+      });
+    };
+    const hip = seated ? 0.56 : 0.84;
+    part(
+      peopleClothing,
+      new THREE.Vector3(0, hip + 0.32, 0),
+      new THREE.Vector3(0.42, 0.56, 0.25),
+      shirt,
+    );
+    part(
+      peopleClothing,
+      new THREE.Vector3(0, hip, 0),
+      new THREE.Vector3(0.34, 0.2, 0.24),
+      trousers,
+    );
+    part(
+      peopleSkin,
+      new THREE.Vector3(0, hip + 0.79, 0),
+      new THREE.Vector3(0.145, 0.17, 0.14),
+      skin,
+    );
+    part(
+      peopleHair,
+      new THREE.Vector3(0, hip + 0.82, -0.012),
+      new THREE.Vector3(0.15, 0.17, 0.148),
+      hair,
+    );
+    for (const side of [-1, 1]) {
+      if (seated) {
+        part(
+          peopleClothing,
+          new THREE.Vector3(side * 0.11, 0.5, 0.17),
+          new THREE.Vector3(0.13, 0.14, 0.38),
+          trousers,
+        );
+        part(
+          peopleClothing,
+          new THREE.Vector3(side * 0.11, 0.27, 0.33),
+          new THREE.Vector3(0.12, 0.42, 0.13),
+          trousers,
+        );
+        part(
+          peopleShoes,
+          new THREE.Vector3(side * 0.11, 0.07, 0.41),
+          new THREE.Vector3(0.16, 0.13, 0.29),
+          "#384650",
+        );
+      } else {
+        const step = pose === 2 ? side * 0.1 : 0;
+        part(
+          peopleClothing,
+          new THREE.Vector3(side * 0.11, 0.44, step),
+          new THREE.Vector3(0.13, 0.7, 0.15),
+          trousers,
+        );
+        part(
+          peopleShoes,
+          new THREE.Vector3(side * 0.11, 0.075, step + 0.055),
+          new THREE.Vector3(0.16, 0.13, 0.29),
+          "#384650",
+        );
+      }
+      const shoulder = new THREE.Vector3(side * 0.25, hip + 0.52, 0);
+      const elbow = new THREE.Vector3(
+        side * 0.3,
+        hip + 0.28,
+        seated ? 0.12 : 0.01,
+      );
+      const hand = new THREE.Vector3(
+        side * 0.28,
+        hip + 0.04,
+        seated ? 0.28 : 0.04,
+      );
+      if (pose === 1 && side > 0) {
+        elbow.set(0.46, hip + 0.33, 0.08);
+        hand.set(0.5, hip + 0.59, 0.1);
+      }
+      limb(shoulder, elbow, shirt, 0.075);
+      limb(elbow, hand, skin, 0.058);
+    }
+  };
+
+  const makeGreenhouse = (
+    angle: number,
+    across: number,
+    width: number,
+    depth: number,
+  ) => {
+    buildingCount++;
+    placeBox(greenhouseWalls, angle, across, 1.35, width, 2.5, depth);
+    placeBox(
+      greenhouseRoofs,
+      angle,
+      across,
+      2.6,
+      width + 0.2,
+      1.5,
+      depth + 0.2,
+    );
+    placeBox(trims, angle, across, 0.18, width + 0.25, 0.25, depth + 0.25);
+    for (const edge of [-1, 1]) {
+      placeBox(
+        trims,
+        angle,
+        across + edge * depth * 0.5,
+        1.4,
+        width + 0.1,
+        0.1,
+        0.1,
+      );
+      for (let rib = -1; rib <= 1; rib++) {
+        placeBox(
+          trims,
+          angle,
+          across + edge * depth * 0.5,
+          1.4,
+          0.09,
+          2.5,
+          0.09,
+          undefined,
+          rib * width * 0.42,
+        );
+      }
+    }
   };
 
   // A small number of shared meshes draw a whole inhabited ring. The central
@@ -346,6 +611,15 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
       const isPool = district === 2 && i % 3 !== 0;
       const isOrchard = district === 4 && i % 3 !== 0;
       if (isFarm) {
+        if ((i + (side > 0 ? 1 : 0)) % 4 === 0) {
+          makeGreenhouse(
+            angle + (random() - 0.5) * 0.009,
+            side * 16.1,
+            10.5,
+            6,
+          );
+          continue;
+        }
         for (let row = 0; row < 3; row++) {
           const across = side * (13.8 + row * 2.1);
           placeBox(bedBorders, angle, across, 0.15, 12.2, 0.3, 1.65);
@@ -385,74 +659,390 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
           plantTree(angle + 0.022, side * (13.6 + row * 4.5), 1.05);
         }
       } else {
-        const width = 6.3 + random() * 4.7;
-        const depth = 5.3 + random() * 2;
-        const height = district === 5 ? 7 + random() * 5 : 4.0 + random() * 4.1;
-        const across = side * 16.1;
-        const facade = new THREE.Color().setHSL(
-          0.12 + random() * 0.08,
-          0.12,
-          0.75 + random() * 0.12,
-        );
-        placeBox(
-          boxes,
-          angle,
-          across,
-          height / 2 + 0.11,
-          width,
-          height,
-          depth,
-          facade,
-        );
-        placeBox(trims, angle, across, 0.31, width + 0.75, 0.5, depth + 0.65);
+        buildingCount++;
+        const buildingAngle = angle + (random() - 0.5) * 0.018;
+        const width = 5.4 + random() * 5.8;
+        const depth = 4.8 + random() * 1.7;
+        const across = side * (15.9 + random() * 0.75);
+        const style = Math.floor(random() * 6);
+        const height =
+          style === 2
+            ? 8.5 + random() * 5.5
+            : style === 1 || style === 4
+              ? 3 + random() * 1.8
+              : 4.2 + random() * 4;
+        const facadePalette = [
+          "#e8dfc7",
+          "#c9dcd5",
+          "#d4d7e1",
+          "#e2bfa5",
+          "#b9c5c4",
+          "#d8cfb5",
+          "#e5dacf",
+        ];
+        const facade =
+          facadePalette[Math.floor(random() * facadePalette.length)];
+        const roofColor = ["#bb8069", "#718d91", "#778687", "#bdac83"][
+          Math.floor(random() * 4)
+        ];
+        const facadeAcross = across - side * (depth / 2 + 0.035);
         placeBox(
           trims,
-          angle,
+          buildingAngle,
           across,
-          height + 0.15,
-          width + 0.4,
-          0.28,
-          depth + 0.4,
+          0.25,
+          width + 0.7,
+          0.35,
+          depth + 0.6,
         );
-        for (let level = 0; level < Math.floor(height / 2.7); level++) {
+
+        if (style === 4) {
+          // Open U-shaped courtyard homes, with a planted centre and two wings.
+          const wingWidth = width * 0.25;
+          for (const edge of [-1, 1]) {
+            placeBox(
+              boxes,
+              buildingAngle,
+              across,
+              height / 2 + 0.1,
+              wingWidth,
+              height,
+              depth,
+              facade,
+              edge * width * 0.36,
+            );
+            placeBox(
+              pitchedRoofs,
+              buildingAngle,
+              across,
+              height + 0.1,
+              wingWidth + 0.3,
+              0.9,
+              depth + 0.3,
+              roofColor,
+              edge * width * 0.36,
+            );
+            placeBox(
+              glass,
+              buildingAngle,
+              facadeAcross,
+              1.8,
+              wingWidth * 0.65,
+              1.15,
+              0.06,
+              undefined,
+              edge * width * 0.36,
+            );
+          }
           placeBox(
-            glass,
-            angle,
-            across - side * (depth / 2 + 0.025),
-            1.9 + level * 2.6,
-            width * 0.88,
-            0.91,
-            0.055,
+            boxes,
+            buildingAngle,
+            across + side * depth * 0.35,
+            height / 2 + 0.1,
+            width,
+            height,
+            depth * 0.3,
+            facade,
+          );
+          placeBox(
+            roofGardens,
+            buildingAngle,
+            across - side * 0.4,
+            0.32,
+            width * 0.35,
+            0.4,
+            depth * 0.42,
+          );
+        } else if (style === 5) {
+          // An airy civic pavilion with a cantilevered solar canopy.
+          for (const edge of [-1, 1]) {
+            for (const end of [-1, 1]) {
+              placeBox(
+                trims,
+                buildingAngle,
+                across + end * depth * 0.37,
+                height / 2,
+                0.25,
+                height,
+                0.25,
+                undefined,
+                edge * width * 0.4,
+              );
+            }
+          }
+          placeBox(
+            boxes,
+            buildingAngle,
+            across + side * depth * 0.3,
+            height * 0.28,
+            width * 0.8,
+            height * 0.54,
+            depth * 0.28,
+            facade,
           );
           placeBox(
             trims,
-            angle,
-            across - side * (depth / 2 + 0.13),
-            1.36 + level * 2.6,
-            width * 0.95,
-            0.13,
-            0.38,
+            buildingAngle,
+            across,
+            height,
+            width + 0.9,
+            0.3,
+            depth + 0.7,
           );
+          placeBox(
+            roofs,
+            buildingAngle,
+            across,
+            height + 0.22,
+            width + 0.5,
+            0.12,
+            depth + 0.3,
+          );
+        } else {
+          placeBox(
+            boxes,
+            buildingAngle,
+            across,
+            height / 2 + 0.11,
+            width,
+            height,
+            depth,
+            facade,
+          );
+          const levels = Math.max(1, Math.floor(height / 2.6));
+          for (let level = 0; level < levels; level++) {
+            const floorHeight = 1.65 + level * 2.5;
+            if (style === 1 || style === 3) {
+              // Separate windows and balcony decks break up long banded facades.
+              const bays = Math.max(2, Math.floor(width / 2.2));
+              for (let bay = 0; bay < bays; bay++) {
+                const offset = ((bay + 0.5) / bays - 0.5) * width * 0.87;
+                placeBox(
+                  glass,
+                  buildingAngle,
+                  facadeAcross,
+                  floorHeight,
+                  (width * 0.62) / bays,
+                  1.1,
+                  0.07,
+                  undefined,
+                  offset,
+                );
+                if (style === 3 && level > 0) {
+                  placeBox(
+                    trims,
+                    buildingAngle,
+                    facadeAcross - side * 0.42,
+                    floorHeight - 0.7,
+                    (width * 0.8) / bays,
+                    0.14,
+                    1.05,
+                    undefined,
+                    offset,
+                  );
+                  placeBox(
+                    trims,
+                    buildingAngle,
+                    facadeAcross - side * 0.9,
+                    floorHeight - 0.23,
+                    (width * 0.8) / bays,
+                    0.08,
+                    0.08,
+                    undefined,
+                    offset,
+                  );
+                }
+              }
+            } else {
+              placeBox(
+                glass,
+                buildingAngle,
+                facadeAcross,
+                floorHeight,
+                width * 0.86,
+                0.95,
+                0.06,
+              );
+              placeBox(
+                trims,
+                buildingAngle,
+                facadeAcross - side * 0.12,
+                floorHeight - 0.55,
+                width * 0.95,
+                0.13,
+                0.4,
+              );
+            }
+          }
+          placeBox(
+            trims,
+            buildingAngle,
+            across,
+            height + 0.15,
+            width + 0.35,
+            0.25,
+            depth + 0.35,
+          );
+          if (style === 1) {
+            placeBox(
+              pitchedRoofs,
+              buildingAngle,
+              across,
+              height + 0.25,
+              width + 0.65,
+              1.5 + random(),
+              depth + 0.65,
+              roofColor,
+            );
+          } else if (style === 2) {
+            // Taller, stepped towers have offset upper levels and rooftop gardens.
+            const crownHeight = 1.5 + random() * 2;
+            const crownOffset = (random() - 0.5) * width * 0.26;
+            placeBox(
+              boxes,
+              buildingAngle,
+              across + side * 0.4,
+              height + crownHeight / 2 + 0.3,
+              width * 0.64,
+              crownHeight,
+              depth * 0.72,
+              facade,
+              crownOffset,
+            );
+            placeBox(
+              glass,
+              buildingAngle,
+              across - side * (depth * 0.36 - 0.38),
+              height + crownHeight * 0.55 + 0.3,
+              width * 0.54,
+              0.8,
+              0.08,
+              undefined,
+              crownOffset,
+            );
+            placeBox(
+              roofs,
+              buildingAngle,
+              across + side * 0.4,
+              height + crownHeight + 0.4,
+              width * 0.69,
+              0.15,
+              depth * 0.77,
+              undefined,
+              crownOffset,
+            );
+            placeBox(
+              roofGardens,
+              buildingAngle,
+              across - side * depth * 0.33,
+              height + 0.43,
+              width * 0.83,
+              0.32,
+              depth * 0.18,
+            );
+          } else {
+            placeBox(
+              roofs,
+              buildingAngle,
+              across + side * depth * 0.22,
+              height + 0.36,
+              width * 0.82,
+              0.12,
+              depth * 0.36,
+            );
+            placeBox(
+              roofGardens,
+              buildingAngle,
+              across - side * depth * 0.22,
+              height + 0.4,
+              width * 0.78,
+              0.23,
+              depth * 0.27,
+            );
+            if (style === 0) {
+              placeBox(
+                boxes,
+                buildingAngle,
+                across + side * 0.3,
+                height + 0.95,
+                width * 0.4,
+                1.6,
+                depth * 0.45,
+                facade,
+                width * 0.18,
+              );
+            }
+          }
+          // Entrances face the side paths, and canopies vary independently.
+          placeBox(
+            glass,
+            buildingAngle,
+            facadeAcross - side * 0.03,
+            1.05,
+            0.95,
+            1.85,
+            0.08,
+            undefined,
+            -width * 0.2,
+          );
+          if (random() < 0.7)
+            placeBox(
+              trims,
+              buildingAngle,
+              facadeAcross - side * 0.55,
+              2.25,
+              2.0,
+              0.14,
+              1.2,
+              undefined,
+              -width * 0.2,
+            );
         }
-        placeBox(
-          roofs,
-          angle,
-          across + side * 1.2,
-          height + 0.34,
-          width * 0.88,
-          0.12,
-          depth * 0.37,
-        );
-        placeBox(
-          roofGardens,
-          angle,
-          across - side * 1.3,
-          height + 0.38,
-          width * 0.82,
-          0.22,
-          depth * 0.29,
-        );
       }
+    }
+    // Offset small groups along lawns instead of filling the clear promenade.
+    if (i % 3 === 0) {
+      const side = random() < 0.5 ? -1 : 1;
+      const personAngle = angle + 0.028 + random() * 0.015;
+      const facing = side > 0 ? 0 : Math.PI;
+      placePerson(personAngle, side * 5.75, facing + 0.45, false, i % 2);
+      if (i % 2 === 0)
+        placePerson(personAngle + 0.0045, side * 6.4, facing - 0.7, false, 1);
+      if (i % 4 === 0)
+        placePerson(personAngle - 0.0045, side * 6.8, facing + 1.2, false, 2);
+    }
+    if (i % 5 === 2) {
+      const side = random() < 0.5 ? -1 : 1;
+      const benchAngle = angle + 0.026;
+      const benchAcross = side * 9.3;
+      placeBox(furniture, benchAngle, benchAcross, 0.55, 2.5, 0.14, 0.7);
+      placeBox(
+        furniture,
+        benchAngle,
+        benchAcross + side * 0.3,
+        0.96,
+        2.5,
+        0.75,
+        0.12,
+      );
+      for (const edge of [-1, 1])
+        placeBox(
+          trims,
+          benchAngle,
+          benchAcross,
+          0.29,
+          0.12,
+          0.5,
+          0.6,
+          undefined,
+          edge * 0.95,
+        );
+      placePerson(
+        benchAngle,
+        benchAcross - side * 0.02,
+        side > 0 ? 0 : Math.PI,
+        true,
+      );
     }
     if (i % 2 === 0) placeBox(dashes, angle, 0, 0.115, 2.4, 0.025, 0.06);
   }
@@ -505,8 +1095,29 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
   instances(boxGeometry, materials.trim, trims);
   instances(boxGeometry, materials.solar, roofs);
   instances(boxGeometry, materials.hedge, roofGardens);
+  const roofGeometry = pitchedRoofGeometry();
+  instances(roofGeometry, materials.pitchedRoof, pitchedRoofs);
+  instances(boxGeometry, materials.greenhouse, greenhouseWalls);
+  instances(roofGeometry, materials.greenhouse, greenhouseRoofs);
   instances(new THREE.CylinderGeometry(1, 0.8, 1, 6), materials.trunk, trunks);
   instances(new THREE.IcosahedronGeometry(1, 1), materials.leaves, leaves);
+  instances(new THREE.ConeGeometry(1, 1, 6), materials.leaves, conifers);
+  instances(boxGeometry, materials.furniture, furniture);
+  instances(boxGeometry, materials.clothing, peopleClothing);
+  instances(new THREE.SphereGeometry(1, 6, 4), materials.skin, peopleSkin);
+  instances(
+    new THREE.SphereGeometry(1, 6, 3, 0, TAU, 0, Math.PI * 0.52),
+    materials.hair,
+    peopleHair,
+  );
+  instances(boxGeometry, materials.shoes, peopleShoes);
+  instances(
+    new THREE.CylinderGeometry(1, 1, 1, 5),
+    materials.clothing,
+    peopleArms,
+  );
+  root.userData.peopleCount = peopleCount;
+  root.userData.buildingCount = buildingCount;
   instances(cylinderGeometry, materials.structure, lamps);
   instances(new THREE.SphereGeometry(1, 6, 4), materials.lamp, bulbs);
   instances(boxGeometry, materials.path, bedBorders);
@@ -644,85 +1255,22 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
   instances(cylinderGeometry, materials.structure, spokes);
   instances(cylinderGeometry, materials.trim, spokeBraces);
 
-  // Deterministic star positions have a fixed cost and need no texture atlas.
-  const starPositions: number[] = [];
-  const starColors: number[] = [];
-  for (let i = 0; i < 3200; i++) {
-    const azimuth = random() * TAU;
-    const altitude = Math.acos(random() * 2 - 1);
-    const distance = 1700 + random() * 750;
-    starPositions.push(
-      distance * Math.sin(altitude) * Math.cos(azimuth),
-      distance * Math.cos(altitude),
-      distance * Math.sin(altitude) * Math.sin(azimuth),
-    );
-    const color = new THREE.Color().setHSL(
-      0.52 + random() * 0.13,
-      random() * 0.35,
-      0.66 + random() * 0.3,
-    );
-    starColors.push(color.r, color.g, color.b);
-  }
-  const starsGeometry = new THREE.BufferGeometry();
-  starsGeometry.setAttribute(
-    "position",
-    new THREE.Float32BufferAttribute(starPositions, 3),
-  );
-  starsGeometry.setAttribute(
-    "color",
-    new THREE.Float32BufferAttribute(starColors, 3),
-  );
-  const stars = add(
-    new THREE.Points(
-      starsGeometry,
-      new THREE.PointsMaterial({
-        size: 1.45,
-        sizeAttenuation: false,
-        vertexColors: true,
-        fog: false,
-        depthWrite: false,
-      }),
-    ),
-  );
-  stars.name = "Procedural stars";
-
-  const sun = mesh(
-    new THREE.SphereGeometry(22, 16, 12),
-    new THREE.MeshBasicMaterial({ color: "#fff2ce", fog: false }),
-  );
-  sun.position.set(1050, 1800, -1200);
-
-  // A simple distant blue world provides a quiet point of orientation.
-  const planet = mesh(
-    new THREE.IcosahedronGeometry(155, 4),
-    standard("#336d9a", { roughness: 1, flatShading: true, fog: false }),
-  );
-  planet.position.set(-1000, 560, -1600);
-  const planetAtmosphere = mesh(
-    new THREE.IcosahedronGeometry(159, 4),
-    new THREE.MeshBasicMaterial({
-      color: "#74c8e5",
-      side: THREE.BackSide,
-      transparent: true,
-      opacity: 0.2,
-      fog: false,
-    }),
-  );
-  planetAtmosphere.position.copy(planet.position);
-
-  // The habitat is held still for navigation. In this co-rotating coordinate
-  // system distant inertial objects sweep past at the opposite angular rate.
-  const inertialSky = add(new THREE.Group());
-  inertialSky.name = "Inertial sky";
-  inertialSky.add(stars, sun, planet, planetAtmosphere, sunLight);
-  const angularSpeed = Math.sqrt(9.81 / HABITAT_RADIUS);
-
   let disposed = false;
   return {
     root,
-    update(elapsedSeconds) {
+    update(elapsedSeconds, lighting) {
       if (disposed) return;
-      inertialSky.rotation.y = -elapsedSeconds * angularSpeed;
+      if (lighting) {
+        const daylight = THREE.MathUtils.clamp(lighting.sunlight, 0, 1);
+        sunLight.position
+          .copy(lighting.sunDirection)
+          .normalize()
+          .multiplyScalar(1000);
+        sunLight.intensity = 2.35 * daylight;
+        // The station's own lights keep its interior navigable during eclipse.
+        hemisphereLight.intensity = 0.75 + 1.35 * daylight;
+        ambientLight.intensity = 0.32 + 0.28 * daylight;
+      }
       for (let i = 0; i < beacons.length; i++) {
         const beacon = beacons[i];
         const base = floorMatrix(

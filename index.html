@@ -35,16 +35,27 @@
         TORUS<span>FIELD LAB / 001</span></a
       >
       <div class="header-right">
-        <span class="live-dot"></span><span>PROCEDURAL HABITAT</span
-        ><button
-          id="help-button"
-          class="text-button"
-          aria-label="Show controls"
-        >
+        <span class="live-dot"></span><span>PROCEDURAL HABITAT</span>
+        <div class="time-control">
+          <label for="time-scale">TIME</label
+          ><select id="time-scale" aria-label="Simulation speed">
+            <option value="0.25">¼×</option>
+            <option value="0.5">½×</option>
+            <option value="1" selected>1×</option>
+            <option value="5">5×</option>
+            <option value="10">10×</option>
+          </select>
+        </div>
+        <button id="help-button" class="text-button" aria-label="Show controls">
           ? <span>Controls</span>
         </button>
       </div>
     </header>
+    <div class="orbital-readout">
+      <span>EARTH ORBIT · 2,000 KM</span
+      ><strong id="simulation-clock">T+00:00:00</strong
+      ><span id="sun-state">SUNLIT</span>
+    </div>
     <main id="intro" class="intro">
       <p class="eyebrow">A SMALL WORLD. AN UNFAMILIAR GRAVITY.</p>
       <h1>Meet your<br />new <em>horizon.</em></h1>
@@ -114,11 +125,20 @@
         <i></i> PREDICTED PATH <span id="flight-time">—</span>
       </div>
       <button id="launch-button" class="launch-button">
-        Launch probe <span>↗ <kbd>CLICK</kbd></span>
+        Launch probe <span>↗ <kbd>HOLD / F</kbd></span>
       </button>
-      <div class="physics-note">
-        <span>↻</span>
-        <p>Nothing pulls you down.<br />The habitat turns beneath your feet.</p>
+      <progress
+        id="charge-meter"
+        max="1"
+        value="0"
+        aria-label="Launcher charge"
+      ></progress>
+      <p id="charge-status" class="charge-status">
+        HOLD TO CHARGE · RELEASE TO LAUNCH
+      </p>
+      <div class="probe-tools">
+        <span>PROBES <strong id="probe-count">0 / 5</strong></span
+        ><button id="clear-button">Clear <kbd>C</kbd></button>
       </div>
     </aside>
     <div id="crosshair" class="crosshair" hidden>
@@ -170,9 +190,9 @@
     </footer>
     <div id="key-guide" class="key-guide" hidden>
       <span><kbd>W A S D</kbd> move</span
-      ><span><kbd>SPACE</kbd> jump / rise</span
-      ><span><kbd>SHIFT</kbd> boost</span
-      ><span><kbd>Q</kbd> descend in flight</span><span><kbd>R</kbd> reset</span
+      ><span><kbd>SPACE</kbd> jump / rise</span><span><kbd>F</kbd> charge</span
+      ><span><kbd>[ ]</kbd> speed</span><span><kbd>C</kbd> clear</span
+      ><span><kbd>, .</kbd> time</span><span><kbd>R</kbd> reset</span
       ><span><kbd>ESC</kbd> release mouse</span>
     </div>
     <dialog id="help-dialog">
@@ -192,8 +212,14 @@
         <dd>Move faster / descend in flight</dd>
         <dt>1 / 2</dt>
         <dd>Walking / powered flight</dd>
-        <dt>Click / launch button</dt>
-        <dd>Launch a probe along the ghost path</dd>
+        <dt>Hold click / F / launch button</dt>
+        <dd>Charge for one second; release to launch</dd>
+        <dt>[ / ] or − / +</dt>
+        <dd>Decrease / increase probe speed by 5 m/s</dd>
+        <dt>C</dt>
+        <dd>Clear probes. Only the newest five are kept.</dd>
+        <dt>, / . or Time selector</dt>
+        <dd>Slow / speed simulation: ¼×, ½×, 1×, 5×, 10×</dd>
         <dt>R / Esc</dt>
         <dd>Reset position / release mouse</dd>
         <dt>Orbit view</dt>
@@ -206,7 +232,11 @@
       <p class="help-small">
         A compact, stylized Stanford torus. Buildings are scenery; the floor and
         side rails provide collision. Flight uses a powered, stabilized
-        thruster.
+        thruster. The sky follows an approximate circular Earth orbit at 2,000
+        km, inclined by 28.5°. Earth, Moon and Sun directions, apparent sizes
+        and eclipses share the simulation clock. Charging uses real seconds. Esc
+        pauses exploration; switching away from this browser tab pauses the
+        simulation.
       </p>
     </dialog>
     <div id="notice" role="status" aria-live="polite"></div>

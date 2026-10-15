@@ -13,6 +13,9 @@ import {
   stepFreeFlight,
 } from "./physics";
 import type { MotionState } from "./physics";
+import { buildSky } from "./sky";
+import { buildAvatar } from "./avatar";
+import { updateMotionRamp, walkSpeed, flightSpeed } from "./movement";
 import "./style.css";
 
 const element = <T extends HTMLElement = HTMLElement>(id: string) =>
@@ -36,7 +39,7 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.12;
 const scene = new THREE.Scene();
-scene.background = new THREE.Color("#101c23");
+scene.background = null;
 const camera = new THREE.PerspectiveCamera(
   60,
   innerWidth / innerHeight,
@@ -44,13 +47,18 @@ const camera = new THREE.PerspectiveCamera(
   6000,
 );
 const habitat = buildHabitat(scene);
+scene.background = null;
+const sky = buildSky();
+const avatar = buildAvatar();
+renderer.autoClear = false;
 const controls = new OrbitControls(camera, canvas);
+const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 controls.enableDamping = true;
 controls.dampingFactor = 0.055;
 controls.minDistance = 270;
 controls.maxDistance = 1100;
 controls.enablePan = false;
-controls.autoRotate = !matchMedia("(prefers-reduced-motion: reduce)").matches;
+controls.autoRotate = !reducedMotion.matches;
 controls.autoRotateSpeed = 0.45;
 camera.position.set(395, 325, 420);
 controls.target.set(0, 0, 0);
@@ -78,6 +86,14 @@ let pointerUnavailable = false;
 let fallbackResumed = false;
 let lastShot = -Infinity;
 let elapsed = 0;
+let realElapsed = 0;
+let simulationRate = 1;
+const TIME_RATES = [0.25, 0.5, 1, 5, 10];
+const MAX_PROBES = 5;
+let motionRamp = 0;
+let chargeSource: "mouse" | "button" | "keyboard" | null = null;
+let chargeSeconds = 0;
+let recoil = 0;
 let fixedAccumulator = 0;
 let ghostRefresh = 0;
 const STEP = 1 / 120;
@@ -210,17 +226,97 @@ function updateCamera() {
   camera.lookAt(position.copy(camera.position).add(direction));
 }
 
+function explorationActive() {
+  return (
+    view === "explore" &&
+    !help.open &&
+    (document.pointerLockElement === canvas ||
+      (pointerUnavailable && fallbackResumed))
+  );
+}
+
+function effectiveLaunchSpeed() {
+  const baseSpeed = Number(launchSpeed.value);
+  return baseSpeed + (90 - baseSpeed) * Math.min(chargeSeconds, 1);
+}
+
+function updateLauncherUI() {
+  const speed = Math.round(effectiveLaunchSpeed());
+  element("launch-value").textContent = String(speed);
+  element("charge-meter").setAttribute(
+    "value",
+    String(Math.min(chargeSeconds, 1)),
+  );
+  element("charge-status").textContent = chargeSource
+    ? `${speed} m/s · release to launch`
+    : "HOLD TO CHARGE · RELEASE TO LAUNCH";
+  element("probe-count").textContent = `${probes.length} / ${MAX_PROBES}`;
+  element("launch-button").classList.toggle("charging", chargeSource !== null);
+  element<HTMLButtonElement>("launch-button").disabled = !explorationActive();
+  element("launch-button").title = explorationActive()
+    ? "Hold to charge; release to launch"
+    : "Resume exploration to use the launcher";
+}
+
+function setLaunchSpeed(speed: number) {
+  launchSpeed.value = String(THREE.MathUtils.clamp(speed, 8, 90));
+  updateLauncherUI();
+  refreshGhost();
+}
+
+function cancelCharge() {
+  chargeSource = null;
+  chargeSeconds = 0;
+  updateLauncherUI();
+}
+
+function beginCharge(source: "mouse" | "button" | "keyboard") {
+  if (!explorationActive() || chargeSource) return;
+  chargeSource = source;
+  chargeSeconds = 0;
+  updateLauncherUI();
+}
+
+function releaseCharge() {
+  if (!chargeSource) return;
+  const speed = effectiveLaunchSpeed();
+  const canFire = explorationActive();
+  cancelCharge();
+  if (canFire) launch(speed);
+}
+
+function clearProbes(showNotice = true) {
+  for (const probe of probes) removeProbe(probe);
+  probes.length = 0;
+  updateLauncherUI();
+  if (showNotice) notice("All probes cleared");
+}
+
+function setTimeRate(rate: number) {
+  simulationRate = rate;
+  element<HTMLSelectElement>("time-scale").value = String(rate);
+  notice(`Simulation speed ${rate}×`);
+}
+
+function stepTimeRate(delta: number) {
+  const index = TIME_RATES.indexOf(simulationRate);
+  setTimeRate(
+    TIME_RATES[THREE.MathUtils.clamp(index + delta, 0, TIME_RATES.length - 1)],
+  );
+}
+
 function resetPlayer() {
   player = {
     position: { x: FLOOR_RADIUS, y: 0, z: 0 },
     velocity: { x: 0, y: 0, z: 0 },
   };
   grounded = true;
+  motionRamp = 0;
   yaw = 0;
   pitch = 0.12;
   updateCamera();
-  for (const probe of probes) removeProbe(probe);
-  probes.length = 0;
+  cancelCharge();
+  clearProbes(false);
 }
 
 function setFlight(enabled: boolean) {
@@ -244,10 +340,14 @@ function showPause() {
     (pointerUnavailable && fallbackResumed);
   element("resume-hint").hidden = view !== "explore" || resumed;
   element("crosshair").hidden = view !== "explore" || !resumed;
+  if (!resumed) motionRamp = 0;
+  updateLauncherUI();
 }
 
 async function captureMouse() {
   if (view !== "explore") return;
+  element("resume-button").blur();
+  canvas.focus({ preventScroll: true });
   if (pointerUnavailable) {
     fallbackResumed = true;
     element("resume-button").blur();
@@ -285,6 +385,7 @@ function enterHabitat() {
 }
 
 function orbitView() {
+  cancelCharge();
   document.exitPointerLock?.();
   keys.clear();
   view = "orbit";
@@ -312,14 +413,23 @@ function orbitView() {
   notice("Orbit view · Drag to rotate, scroll to zoom");
 }
 
-function currentShot(): MotionState {
+function currentShot(speed = effectiveLaunchSpeed()): MotionState {
   updateCamera();
-  const origin = camera.position.clone().addScaledVector(direction, 0.65);
+  const origin = camera.position
+    .clone()
+    .addScaledVector(direction, 0.65)
+    .addScaledVector(right, 0.25)
+    .addScaledVector(up, -0.2);
+  const originRadius = Math.hypot(origin.x, origin.z);
+  if (originRadius > FLOOR_RADIUS - 0.1) {
+    origin.x *= (FLOOR_RADIUS - 0.1) / originRadius;
+    origin.z *= (FLOOR_RADIUS - 0.1) / originRadius;
+  }
   // Avoid starting beyond the side wall when aiming outwards near an edge.
   origin.y = THREE.MathUtils.clamp(origin.y, -21.9, 21.9);
   const initialVelocity = direction
     .clone()
-    .multiplyScalar(Number(launchSpeed.value))
+    .multiplyScalar(speed)
     .add(new THREE.Vector3().copy(player.velocity));
   return {
     position: { x: origin.x, y: origin.y, z: origin.z },
@@ -387,11 +497,12 @@ function removeProbe(probe: Probe) {
   (probe.trail.material as THREE.Material).dispose();
 }
 
-function launch() {
-  if (view !== "explore" || elapsed - lastShot < 0.2) return;
-  lastShot = elapsed;
-  if (probes.length >= 24) removeProbe(probes.shift()!);
-  const state = currentShot();
+function launch(speed = Number(launchSpeed.value)) {
+  if (!explorationActive() || realElapsed - lastShot < 0.16) return;
+  lastShot = realElapsed;
+  recoil = 1;
+  if (probes.length >= MAX_PROBES) removeProbe(probes.shift()!);
+  const state = currentShot(speed);
   const mesh = new THREE.Mesh(probeGeometry, probeMaterial);
   mesh.position.copy(state.position);
   const trailGeometry = new THREE.BufferGeometry();
@@ -420,6 +531,10 @@ function launch() {
     age: 0,
     stopped: false,
   });
+  updateLauncherUI();
+  notice(
+    `Probe launched at ${Math.round(speed)} m/s · ${probes.length} / ${MAX_PROBES} probes`,
+  );
 }
 
 function simulatePlayer(dt: number) {
@@ -440,7 +555,10 @@ function simulatePlayer(dt: number) {
       Number(keys.has("Space")) - Number(keys.has("KeyQ")),
     );
   if (desired.lengthSq() > 1) desired.normalize();
-  desired.multiplyScalar(flight ? (boost ? 36 : 15) : boost ? 10 : 5);
+  motionRamp = updateMotionRamp(motionRamp, desired.lengthSq() > 0, dt);
+  desired.multiplyScalar(
+    flight ? flightSpeed(motionRamp, boost) : walkSpeed(motionRamp, boost),
+  );
   velocity.copy(player.velocity);
   if (flight) {
     // Powered, damped flight deliberately counters apparent gravity.
@@ -500,27 +618,44 @@ element("fly-button").addEventListener("click", () => {
   element("fly-button").blur();
 });
 element("resume-button").addEventListener("click", () => void captureMouse());
-element("launch-button").addEventListener("click", () => {
-  launch();
+element("launch-button").addEventListener("pointerdown", (event) => {
+  if (event.button !== 0) return;
+  beginCharge("button");
+  element("launch-button").setPointerCapture(event.pointerId);
+});
+element("launch-button").addEventListener("click", (event) => {
+  if (event.detail === 0) launch();
   element("launch-button").blur();
 });
+element("clear-button").addEventListener("click", () => {
+  cancelCharge();
+  clearProbes();
+  element("clear-button").blur();
+});
 launchSpeed.addEventListener("input", () => {
-  element("launch-value").textContent = launchSpeed.value;
+  updateLauncherUI();
   refreshGhost();
+});
+element<HTMLSelectElement>("time-scale").addEventListener("change", (event) => {
+  setTimeRate(Number((event.target as HTMLSelectElement).value));
+  (event.target as HTMLSelectElement).blur();
 });
 ghostToggle.addEventListener("change", refreshGhost);
 element("help-button").addEventListener("click", () => {
+  cancelCharge();
   document.exitPointerLock?.();
   keys.clear();
   help.showModal();
 });
 element("close-help").addEventListener("click", () => help.close());
 document.addEventListener("pointerlockchange", () => {
+  cancelCharge();
   keys.clear();
   dragLooking = false;
   showPause();
 });
 document.addEventListener("pointerlockerror", () => {
+  cancelCharge();
   pointerUnavailable = true;
   element("drag-hint").hidden = false;
   element("resume-button").textContent = "Continue with drag to look ↗";
@@ -528,11 +663,13 @@ document.addEventListener("pointerlockerror", () => {
 });
 canvas.addEventListener("click", () => {
   if (view !== "explore") return;
-  if (document.pointerLockElement === canvas) launch();
-  else if (!pointerUnavailable) void captureMouse();
+  if (document.pointerLockElement !== canvas && !pointerUnavailable)
+    void captureMouse();
 });
 canvas.addEventListener("pointerdown", (event) => {
   canvas.focus({ preventScroll: true });
+  if (event.button === 0 && document.pointerLockElement === canvas)
+    beginCharge("mouse");
   if (view === "explore" && pointerUnavailable) {
     dragLooking = true;
     canvas.setPointerCapture(event.pointerId);
@@ -545,6 +682,18 @@ canvas.addEventListener("pointerup", () => {
     showPause();
   }
 });
+document.addEventListener("pointerup", (event) => {
+  if (
+    event.button === 0 &&
+    (chargeSource === "mouse" || chargeSource === "button")
+  )
+    releaseCharge();
+});
+document.addEventListener("pointercancel", () => {
+  cancelCharge();
+  dragLooking = false;
+  showPause();
+});
 document.addEventListener("mousemove", (event) => {
   if (
     view !== "explore" ||
@@ -555,10 +704,30 @@ document.addEventListener("mousemove", (event) => {
   pitch = THREE.MathUtils.clamp(pitch - event.movementY * 0.0022, -1.48, 1.48);
 });
 document.addEventListener("keydown", (event) => {
-  if (view !== "explore" || help.open) return;
+  if (help.open || event.ctrlKey || event.metaKey || event.altKey) return;
   const tag = (event.target as HTMLElement)?.tagName;
-  if (tag === "INPUT" || tag === "BUTTON") return;
+  if (tag === "INPUT" || tag === "SELECT" || tag === "BUTTON") return;
+  if (["Comma", "Period"].includes(event.code)) {
+    event.preventDefault();
+    stepTimeRate(event.code === "Period" ? 1 : -1);
+    return;
+  }
+  if (view !== "explore") return;
+  if (["BracketLeft", "Minus", "BracketRight", "Equal"].includes(event.code)) {
+    event.preventDefault();
+    setLaunchSpeed(
+      Number(launchSpeed.value) +
+        (["BracketRight", "Equal"].includes(event.code) ? 5 : -5),
+    );
+    return;
+  }
+  if (event.code === "KeyC" && !event.repeat) {
+    cancelCharge();
+    clearProbes();
+    return;
+  }
   if (event.code === "Escape" && pointerUnavailable) {
+    cancelCharge();
     fallbackResumed = false;
     dragLooking = false;
     keys.clear();
@@ -578,6 +747,7 @@ document.addEventListener("keydown", (event) => {
     event.preventDefault();
   keys.add(event.code);
   if (event.repeat) return;
+  if (event.code === "KeyF") beginCharge("keyboard");
   if (event.code === "KeyR") {
     resetPlayer();
     notice("Returned to the Commons");
@@ -593,11 +763,20 @@ document.addEventListener("keydown", (event) => {
     grounded = false;
   }
 });
-document.addEventListener("keyup", (event) => keys.delete(event.code));
-window.addEventListener("blur", () => keys.clear());
+document.addEventListener("keyup", (event) => {
+  keys.delete(event.code);
+  if (event.code === "KeyF" && chargeSource === "keyboard") releaseCharge();
+});
+window.addEventListener("blur", () => {
+  keys.clear();
+  cancelCharge();
+  motionRamp = 0;
+});
 document.addEventListener("visibilitychange", () => {
   keys.clear();
+  cancelCharge();
   fixedAccumulator = 0;
+  previous = performance.now();
 });
 window.addEventListener("resize", () => {
   renderer.setSize(innerWidth, innerHeight);
@@ -647,17 +826,22 @@ let previous = performance.now();
 let telemetryClock = 0;
 function frame(now: number) {
   requestAnimationFrame(frame);
-  const dt = Math.min((now - previous) / 1000, 0.05);
+  const dt = Math.min((now - previous) / 1000, 0.1);
   previous = now;
   if (document.hidden) return;
-  elapsed += dt;
-  const active =
-    view === "explore" &&
-    !help.open &&
-    (document.pointerLockElement === canvas ||
-      (pointerUnavailable && fallbackResumed));
+  realElapsed += dt;
+  const active = explorationActive();
+  const simulationRunning = !help.open && (active || view !== "explore");
+  const simulationDelta = simulationRunning ? dt * simulationRate : 0;
+  elapsed += simulationDelta;
+  if (active && chargeSource) {
+    chargeSeconds = Math.min(1, chargeSeconds + dt);
+    updateLauncherUI();
+  }
+  if (!active && chargeSource) cancelCharge();
+  recoil *= Math.exp(-13 * dt);
   if (active) {
-    fixedAccumulator += dt;
+    fixedAccumulator += simulationDelta;
     while (fixedAccumulator >= STEP) {
       simulatePlayer(STEP);
       fixedAccumulator -= STEP;
@@ -667,12 +851,16 @@ function frame(now: number) {
   }
   if (view === "explore") updateCamera();
   else controls.update(dt);
-  if (!help.open && (active || view !== "explore")) {
+  document.body.classList.toggle(
+    "looking-down",
+    view === "explore" && pitch < -0.65,
+  );
+  if (simulationRunning) {
     for (let i = probes.length - 1; i >= 0; i--) {
       const probe = probes[i];
-      probe.age += dt;
+      probe.age += simulationDelta;
       if (!probe.stopped) {
-        const result = advanceBallistic(probe.state, dt);
+        const result = advanceBallistic(probe.state, simulationDelta);
         probe.state = result.state;
         probe.stopped = !!result.impact;
         probe.mesh.position.copy(probe.state.position);
@@ -690,6 +878,7 @@ function frame(now: number) {
       if (probe.age > 32) {
         removeProbe(probe);
         probes.splice(i, 1);
+        updateLauncherUI();
       }
     }
   }
@@ -698,13 +887,46 @@ function frame(now: number) {
     refreshGhost();
     ghostRefresh = 0;
   }
-  habitat.update(elapsed);
+  const orbit = sky.update(elapsed, camera);
+  habitat.update(elapsed, orbit);
+  avatar.update({
+    deltaSeconds: dt,
+    movementSpeed: Math.hypot(
+      player.velocity.x,
+      player.velocity.y,
+      player.velocity.z,
+    ),
+    grounded,
+    flying: flight,
+    charge: chargeSource ? Math.min(chargeSeconds, 1) : 0,
+    recoil,
+    pitch,
+    aspect: camera.aspect,
+    visible: view === "explore",
+    reducedMotion: reducedMotion.matches,
+  });
   telemetryClock += dt;
   if (telemetryClock > 0.1) {
     updateTelemetry();
+    const totalSeconds = Math.floor(elapsed);
+    element("simulation-clock").textContent =
+      `T+${String(Math.floor(totalSeconds / 3600)).padStart(2, "0")}:${String(Math.floor(totalSeconds / 60) % 60).padStart(2, "0")}:${String(totalSeconds % 60).padStart(2, "0")}`;
+    element("sun-state").textContent =
+      orbit.sunlight < 0.01
+        ? "EARTH SHADOW"
+        : orbit.sunlight < 0.99
+          ? "PENUMBRA"
+          : "SUNLIT";
     telemetryClock = 0;
   }
+  renderer.clear();
+  renderer.render(sky.scene, sky.camera);
+  renderer.clearDepth();
   renderer.render(scene, camera);
+  if (view === "explore") {
+    renderer.clearDepth();
+    renderer.render(avatar.scene, avatar.camera);
+  }
 }
 if (innerWidth > 700)
   camera.setViewOffset(
@@ -715,4 +937,5 @@ if (innerWidth > 700)
     innerWidth,
     innerHeight,
   );
+updateLauncherUI();
 requestAnimationFrame(frame);
