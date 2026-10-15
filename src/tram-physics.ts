@@ -234,6 +234,14 @@ export function resolveTramCollision(
           ? Math.sign(local.across)
           : -Math.sign(trackAcross(direction));
       const clearAcross = side * (expandedHalfWidth + 0.1);
+      const tram = getTramState(toTime, direction, carIndex);
+      // While mounting a parked car, block the body without kicking the jump
+      // away. The player's lateral momentum can carry them over the roof once
+      // their feet clear it. Moving cars and ground contacts still shove aside.
+      const mountingParkedCar =
+        downwardSpeed(current) < -0.05 &&
+        currentHeight > 0.4 &&
+        (tram.stopped || tram.speed < 0.5);
       return {
         state: {
           position: {
@@ -242,11 +250,13 @@ export function resolveTramCollision(
           },
           velocity: {
             ...current.velocity,
-            y: side * Math.max(3.5, side * current.velocity.y),
+            y: mountingParkedCar
+              ? current.velocity.y
+              : side * Math.max(3.5, side * current.velocity.y),
           },
         },
         support: null,
-        pushed: true,
+        pushed: !mountingParkedCar,
       };
     }
   }

@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   FLOOR_RADIUS,
   rotateY,
+  stepFreeFlight,
   type MotionState,
   type Vec3,
 } from "../src/physics.ts";
@@ -308,6 +309,93 @@ test("a swept side impact cannot tunnel through a car", () => {
   assert.equal(collision.pushed, true);
   assert.ok(collision.state.position.y > TRAM_TRACK_ACROSS + TRAM_WIDTH / 2);
   assert.ok(collision.state.velocity.y > 0);
+});
+
+test("jumping onto a parked car blocks penetration without kicking the player away", () => {
+  for (const direction of directions) {
+    const support: TramSupport = { direction, carIndex: 0 };
+    const time = direction === "spinward" ? 3 : 23;
+    assert.equal(getTramState(time, direction).stopped, true);
+    const side = direction === "spinward" ? -1 : 1;
+    const previous = descendingState(
+      positionOnCar(support, time, { across: side * 1.5, height: 2.45 }),
+      -3,
+    );
+    const current = descendingState(
+      positionOnCar(support, time, { across: side * 1.25, height: 2.5 }),
+      -3,
+    );
+    current.velocity.y = -side * 2;
+    const collision = resolveTramCollision(previous, current, time, time, null);
+    assert.equal(collision.pushed, false);
+    assert.equal(collision.support, null);
+    const trackY =
+      direction === "spinward" ? TRAM_TRACK_ACROSS : -TRAM_TRACK_ACROSS;
+    near(
+      Math.abs(collision.state.position.y - trackY),
+      TRAM_WIDTH / 2 + PLAYER_RADIUS + 0.1,
+    );
+    nearVector(collision.state.velocity, current.velocity);
+    near(
+      Math.hypot(collision.state.position.x, collision.state.position.z),
+      FLOOR_RADIUS - 2.5,
+    );
+
+    // The same rising contact against a moving car still shoves clear.
+    const movingTime = direction === "spinward" ? 24 : 4;
+    assert.ok(getTramState(movingTime, direction).speed > 0.5);
+    const movingPrevious = {
+      ...previous,
+      position: positionOnCar(support, movingTime - 1 / 120, {
+        across: side * 1.5,
+        height: 2.45,
+      }),
+    };
+    const movingCurrent = descendingState(
+      positionOnCar(support, movingTime, { across: side * 1.25, height: 2.5 }),
+      -3,
+    );
+    movingCurrent.velocity.y = -side * 2;
+    const movingHit = resolveTramCollision(
+      movingPrevious,
+      movingCurrent,
+      movingTime - 1 / 120,
+      movingTime,
+      null,
+    );
+    assert.equal(movingHit.pushed, true);
+    near(movingHit.state.velocity.y, side * 3.5);
+  }
+});
+
+test("an eight-metre-per-second jump can mount a parked roof from the promenade side", () => {
+  const support: TramSupport = { direction: "spinward", carIndex: 0 };
+  let state: MotionState = {
+    position: positionOnCar(support, 1, { across: -1.5, height: 0 }),
+    velocity: { x: -8, y: 2, z: 0 },
+  };
+  let landed = false;
+  const step = 1 / 120;
+  for (let index = 0; index < 180 && !landed; index++) {
+    const from = 1 + index * step;
+    const current = stepFreeFlight(state, step);
+    const collision = resolveTramCollision(
+      state,
+      current,
+      from,
+      from + step,
+      null,
+    );
+    assert.equal(
+      collision.pushed,
+      false,
+      "a parked car does not kick a mounting jump away",
+    );
+    state = collision.state;
+    landed = collision.support !== null;
+  }
+  assert.ok(landed);
+  assert.ok(isOnTramRoof(state.position, support, 2.5));
 });
 
 test("only body overlap causes a shove, without grounding people above or away from a car", () => {
