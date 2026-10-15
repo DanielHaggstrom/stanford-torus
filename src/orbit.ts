@@ -5,7 +5,7 @@ import type { Vec3 } from "./physics.ts";
  * A deliberately small analytic sky model, in metres and SI seconds.
  *
  * The habitat follows a circular 2,000 km orbit, inclined 28.5° to the equator.
- * Its spin axis stays parallel to the orbit normal (no artificial LVLH yaw).
+ * Its fixed spin axis is tilted 18° from the orbit normal (no LVLH yaw).
  * Equatorial inertial +Y is north; +X is the vernal equinox and -Z is east.
  * t=0 is a demonstration equinox, with the habitat at the ascending node,
  * Greenwich facing +X, and the Moon 125° along its inclined circular orbit.
@@ -19,6 +19,7 @@ export const EARTH_RADIUS = 6_371_000;
 export const EARTH_GM = 3.986004418e14;
 export const ORBIT_ALTITUDE_KM = 2000;
 export const ORBIT_INCLINATION_DEG = 28.5;
+export const HABITAT_AXIS_TILT_DEG = 18;
 export const ORBIT_RADIUS = EARTH_RADIUS + ORBIT_ALTITUDE_KM * 1000;
 export const ORBIT_PERIOD_SECONDS =
   2 * Math.PI * Math.sqrt(ORBIT_RADIUS ** 3 / EARTH_GM);
@@ -34,6 +35,7 @@ export const YEAR_SECONDS = 365.256 * 86400;
 
 const TAU = Math.PI * 2;
 const INCLINATION = (ORBIT_INCLINATION_DEG * Math.PI) / 180;
+const AXIS_TILT = (HABITAT_AXIS_TILT_DEG * Math.PI) / 180;
 
 export interface OrbitState {
   /** Apparent body centres relative to the habitat, in the rotating frame. */
@@ -68,6 +70,16 @@ function rotateX(vector: Vec3, angle: number): Vec3 {
   };
 }
 
+function rotateZ(vector: Vec3, angle: number): Vec3 {
+  const c = Math.cos(angle);
+  const s = Math.sin(angle);
+  return {
+    x: c * vector.x - s * vector.y,
+    y: s * vector.x + c * vector.y,
+    z: vector.z,
+  };
+}
+
 function subtract(a: Vec3, b: Vec3): Vec3 {
   return { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z };
 }
@@ -85,9 +97,12 @@ function unit(vector: Vec3): Vec3 {
   };
 }
 
-/** An inertial vector first enters the orbital plane, then the spinning frame. */
+/** Enter the orbital plane, apply the fixed axis tilt, then undo habitat spin. */
 export function inertialToHabitat(vector: Vec3, simSeconds: number): Vec3 {
-  return rotateY(rotateX(vector, -INCLINATION), -ANGULAR_SPEED * simSeconds);
+  return rotateY(
+    rotateZ(rotateX(vector, -INCLINATION), AXIS_TILT),
+    -ANGULAR_SPEED * simSeconds,
+  );
 }
 
 /** Exact point-source sphere/ray eclipse test. Directions need not be unit. */

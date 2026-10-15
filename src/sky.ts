@@ -179,6 +179,57 @@ function makeStars(): THREE.Points {
   );
 }
 
+// A small camera-glare treatment makes a correctly sized solar disc legible
+// without textures, a postprocessing pass, or an oversized physical Sun.
+const SUN_GLARE_RADIUS = THREE.MathUtils.degToRad(3.2);
+
+function makeSunGlare(): THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial> {
+  return new THREE.Mesh(
+    new THREE.PlaneGeometry(2, 2),
+    new THREE.ShaderMaterial({
+      uniforms: {
+        discRadius: { value: 0.08 },
+        visibility: { value: 1 },
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform float discRadius;
+        uniform float visibility;
+        varying vec2 vUv;
+        void main() {
+          vec2 point = vUv * 2.0 - 1.0;
+          float radius = length(point);
+          if (radius >= 1.0) discard;
+          float distanceFromDisc = max(radius - discRadius, 0.0);
+          // Bright golden inner glow, a broad amber halo, and fine eight-point
+          // rays read as sunlight even at the Sun's half-degree apparent size.
+          float inner = exp(-distanceFromDisc * 24.0);
+          float halo = exp(-distanceFromDisc * 6.5) * 0.3;
+          float angle = atan(point.y, point.x);
+          float rays = pow(abs(cos(angle * 4.0)), 34.0)
+            * exp(-radius * 3.2) * 0.28;
+          float edge = 1.0 - smoothstep(0.65, 1.0, radius);
+          vec3 warm = mix(vec3(1.0, 0.25, 0.035), vec3(1.0, 0.79, 0.35), inner);
+          float alpha = (inner * 0.85 + halo + rays) * edge * visibility;
+          gl_FragColor = vec4(warm, alpha);
+          #include <colorspace_fragment>
+        }
+      `,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthTest: true,
+      depthWrite: false,
+      toneMapped: false,
+    }),
+  );
+}
+
 /**
  * Separate, origin-centred sky pass: player motion never adds false parallax.
  * Different render distances preserve each body's exact angular size, while
@@ -191,9 +242,10 @@ export function buildSky(): SkyHandle {
   const earth = new THREE.Mesh(earthGeometry(), bodyMaterial(true));
   const moon = new THREE.Mesh(moonGeometry(), bodyMaterial(false));
   const sun = new THREE.Mesh(
-    new THREE.SphereGeometry(1, 24, 16),
-    new THREE.MeshBasicMaterial({ color: "#fff4cf", toneMapped: false }),
+    new THREE.SphereGeometry(1, 32, 20),
+    new THREE.MeshBasicMaterial({ color: "#fffbed", toneMapped: false }),
   );
+  const sunGlare = makeSunGlare();
   const stars = makeStars();
   const atmosphere = new THREE.Mesh(
     new THREE.SphereGeometry(1.008, 96, 48),
@@ -224,7 +276,7 @@ export function buildSky(): SkyHandle {
       depthWrite: false,
     }),
   );
-  scene.add(stars, earth, moon, sun, atmosphere);
+  scene.add(stars, earth, moon, sun, sunGlare, atmosphere);
   const earthX = new THREE.Vector3(),
     earthY = new THREE.Vector3(),
     earthZ = new THREE.Vector3();
@@ -260,6 +312,14 @@ export function buildSky(): SkyHandle {
       placeBody(earth, state.earthPosition, state.earthAngularRadius, 30);
       placeBody(moon, state.moonPosition, state.moonAngularRadius, 150);
       placeBody(sun, state.sunPosition, state.sunAngularRadius, 180);
+      sunGlare.position.copy(sun.position);
+      sunGlare.lookAt(0, 0, 0);
+      const glareSize = Math.tan(SUN_GLARE_RADIUS) * 180;
+      sunGlare.scale.setScalar(glareSize);
+      sunGlare.material.uniforms.discRadius.value = sun.scale.x / glareSize;
+      // Depth testing masks Earth/Moon silhouettes; this also extinguishes
+      // camera glare as the solar disc passes fully into Earth's shadow.
+      sunGlare.material.uniforms.visibility.value = state.sunlight;
       earthX.set(
         state.earthPrimeDirection.x,
         state.earthPrimeDirection.y,

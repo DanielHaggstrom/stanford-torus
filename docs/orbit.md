@@ -6,7 +6,7 @@ The source of truth is [`src/orbit.ts`](../src/orbit.ts). [`src/sky.ts`](../src/
 
 ## Scenario and reference values
 
-The habitat follows a circular orbit **2,000 km above a spherical Earth**, inclined **28.5° to Earth's equator**. These are scenario choices. Its spin axis stays parallel to the orbit normal, and its spin rate is the same rate used for the playable deck's artificial gravity.
+The habitat follows a circular orbit **2,000 km above a spherical Earth**, inclined **28.5° to Earth's equator**. These are scenario choices. Its fixed spin axis is tilted **18° from the orbit normal**, so Earth starts to one side of the ring plane and traces an oblique path across the sky. Its spin rate is the same rate used for the playable deck's artificial gravity.
 
 | Quantity                          | Value used               |
 | --------------------------------- | ------------------------ |
@@ -35,7 +35,7 @@ r = Earth radius + altitude = 8,371,000 m
 T = 2π √(r³ / μ) ≈ 7,622.14 s ≈ 127.04 minutes
 ```
 
-Habitat and Moon positions come from inclined circles. The annual solar direction includes Earth's obliquity. Subtracting the habitat's inertial position gives the direction and distance to each body. Those relative vectors then rotate into the orbital plane and through the inverse of the habitat's spin. The habitat axis remains fixed in inertial space: the model does not add an extra turn per orbit to keep the same deck facing Earth.
+Habitat and Moon positions come from inclined circles. The annual solar direction includes Earth's obliquity. Subtracting the habitat's inertial position gives the direction and distance to each body. Those relative vectors rotate into the orbital plane, through the fixed 18° tilt about orbital +Z, and through the inverse of the habitat's spin. This same frame change applies to all bodies, surface orientations, stars, and sunlight; Earth's lateral placement is consistent with the lighting and eclipses. The habitat axis remains fixed in inertial space: the model does not add an extra turn per orbit to keep the same deck facing Earth.
 
 Earth's map rotates once per sidereal day. The Moon's map keeps its near side facing Earth. The star field has fixed inertial directions and therefore appears to turn with the habitat. Player movement over the 420 m habitat does not introduce visible astronomical parallax; orbital motion does change the Moon's apparent position and size.
 
@@ -47,7 +47,7 @@ angular radius = asin(body radius / distance from habitat)
 
 At the starting alignment, the calculated angular diameters are approximately **99.12° for Earth**, **0.51° for the Moon**, and **0.53° for the Sun**. Earth is deliberately enormous because the observer is only 2,000 km above it. The Moon can sit outside the view, behind Earth, or behind habitat structures.
 
-The sky uses a separate render pass with scaled distances that preserve these angular sizes and allow Earth to occlude the Moon and Sun. Code-drawn continent outlines, vertex colors, mathematical clouds, and a thin stylized atmospheric rim create Earth's surface; no satellite imagery or image textures are downloaded.
+The sky uses a separate render pass with scaled distances that preserve these angular sizes and allow Earth to occlude the Moon and Sun. Code-drawn continent outlines, vertex colors, mathematical clouds, and a thin stylized atmospheric rim create Earth's surface; no satellite imagery or image textures are downloaded. The Sun has a bright warm-white physical disc and a procedural amber glare halo with restrained rays. That artistic camera glare extends to 3.2° around the centre; it does not change the Sun's physical angular size or eclipse calculations. Ordinary depth testing masks the glare behind Earth and the Moon, and Earth's eclipse visibility extinguishes it when the solar disc is hidden.
 
 ## Sunlight and night
 
@@ -57,7 +57,7 @@ An Earth sphere and Sun ray determine whether the habitat is in shadow. The Sun'
 
 ## Time and limits
 
-The **¼×, ½×, 1×, 5×, and 10×** controls scale the shared simulation clock for movement, ballistics, spin, orbital positions, and scenery animation. A 127-minute orbit takes approximately 12.7 real minutes at 10×. Launcher charging remains one real second at every rate.
+The **1×, 5×, and 10×** controls scale the shared simulation clock for movement, ballistics, spin, orbital positions, and scenery animation. A 127-minute orbit takes approximately 12.7 real minutes at 10×. Launcher charging remains one real second at every rate.
 
 Esc pauses exploration while the mouse is released; the Controls dialog and a hidden browser tab also pause simulation. Orbit view advances time while visible. Resuming does not catch up time spent paused or hidden.
 

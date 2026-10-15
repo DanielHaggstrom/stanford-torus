@@ -431,25 +431,6 @@ input:checked:before {
   transform: translateX(12px);
   background: var(--lime);
 }
-.range-label {
-  display: flex;
-  justify-content: space-between;
-  font-size: 10px;
-  color: var(--muted);
-  margin-bottom: 13px;
-}
-.range-label strong {
-  font-size: 10px;
-  font-weight: 500;
-  color: #eef1e6;
-}
-input[type="range"] {
-  width: 100%;
-  accent-color: var(--lime);
-  height: 3px;
-  margin: 5px 0 17px;
-  cursor: pointer;
-}
 .trajectory-legend {
   display: flex;
   align-items: center;

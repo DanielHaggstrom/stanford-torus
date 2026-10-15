@@ -4,7 +4,7 @@ A small, browser-based playground inside a rotating space habitat. Walk around t
 
 The world is built from procedural geometry: varied buildings, trees, farmland, water, structural ribs, 56 static residents, and your own suited body and launcher. Earth has code-drawn continents; Earth, the Moon, and the Sun follow an analytic orbital sky. There are no texture packs, downloaded models, external fonts, accounts, or backend services.
 
-**Version 0.2.0 · Desktop first · MIT licensed**
+**Version 0.2.1 · Desktop first · MIT licensed**
 
 **[Play in your browser →](https://torus.classroom-fox.com)** · [Source](https://github.com/DanielHaggstrom/stanford-torus) · [Build checks](https://github.com/DanielHaggstrom/stanford-torus/actions)
 
@@ -12,23 +12,22 @@ The world is built from procedural geometry: varied buildings, trees, farmland, 
 
 Choose **Step inside** to explore on foot, or **Explore from orbit** to inspect the whole habitat. The ring contains six districts: Aurora Commons, Sunward Farms, The Reservoir, Zenith Gardens, Orchard Quarter, and Starlight Village.
 
-| Control                                          | Action                                            |
-| ------------------------------------------------ | ------------------------------------------------- |
-| W A S D / arrow keys                             | Move                                              |
-| Mouse                                            | Look around while captured                        |
-| Space                                            | Jump while walking; rise in flight                |
-| Q                                                | Descend in flight                                 |
-| Shift                                            | Move faster                                       |
-| 1 / 2                                            | Walking / powered flight                          |
-| Hold click while captured / F / **Launch probe** | Charge for one real second; release to fire       |
-| [ / ] or − / +                                   | Decrease / increase starting probe speed by 5 m/s |
-| C / **Clear**                                    | Clear all probes                                  |
-| , / . or **Time** selector                       | ¼×, ½×, 1×, 5×, or 10× simulation speed           |
-| R                                                | Return to the Commons and clear probes            |
-| Esc                                              | Release the mouse and pause exploration           |
-| Drag / scroll in orbit view                      | Rotate / zoom                                     |
+| Control                                          | Action                                      |
+| ------------------------------------------------ | ------------------------------------------- |
+| W A S D / arrow keys                             | Move                                        |
+| Mouse                                            | Look around while captured                  |
+| Space                                            | Jump while walking; rise in flight          |
+| Q                                                | Descend in flight                           |
+| Shift                                            | Move faster                                 |
+| 1 / 2                                            | Walking / powered flight                    |
+| Hold click while captured / F / **Launch probe** | Charge for one real second; release to fire |
+| C / **Clear**                                    | Clear all probes                            |
+| , / . or **Time** selector                       | 1×, 5×, or 10× simulation speed             |
+| R                                                | Return to the Commons and clear probes      |
+| Esc                                              | Release the mouse and pause exploration     |
+| Drag / scroll in orbit view                      | Rotate / zoom                               |
 
-Use the side panel to set starting probe speed, toggle the ghost path, or change movement mode. Holding a shot raises its speed toward 90 m/s; the ghost updates while charging. It predicts up to 30 simulated seconds ahead and marks the first floor or side-wall contact. A probe inherits your movement, so firing while running or flying changes its path. Only the newest **five probes** are retained; probes also expire after **32 simulated seconds**.
+Use the side panel to toggle the ghost path or change movement mode. Charging raises launch speed from 28 to 90 m/s over one real second. The ghost updates while charging, predicts up to 30 simulated seconds ahead, and marks the first floor or side-wall contact. A probe inherits your movement, so firing while running or flying changes its path. Only the newest **five probes** are retained; probes also expire after **32 simulated seconds**.
 
 Walking and powered flight build from a gentle start to cruising speed over two simulated seconds of continuous movement. Releasing movement resets that ramp. Look down to see your torso, legs, and boots; the launcher and both hands stay visible in first person.
 
@@ -79,7 +78,7 @@ Walking uses deck adhesion and acceleration for comfortable controls. Jumps add 
 
 ## The orbital sky
 
-The habitat follows a circular Earth orbit **2,000 km above the surface**, inclined by **28.5°**, with a period of approximately **127 minutes**. Earth spans about **99°** of the sky. The view combines orbital motion, habitat spin, Earth's rotation, and the Moon's motion. Sunlight lights the planets and the habitat; passing through Earth's shadow produces orbital night, while interior lighting keeps the paths visible.
+The habitat follows a circular Earth orbit **2,000 km above the surface**, inclined by **28.5°**, with a period of approximately **127 minutes**. Earth spans about **99°** of the sky; the habitat's **18° spin-axis tilt** gives it an offset sky track. The view combines orbital motion, habitat spin, Earth's rotation, and the Moon's motion. The Sun has a bright disc with a procedural warm halo and rays. Sunlight lights the planets and the habitat; passing through Earth's shadow produces orbital night, while interior lighting keeps the paths visible.
 
 This is a coherent demonstration scenario with an invented starting alignment. It does not reproduce the current date's sky. The Moon and Sun have their approximate physical apparent sizes, so the Moon is small and can be obscured by the habitat or Earth. See [the orbital model and sources](docs/orbit.md) for equations, reference values, and limitations.
 
@@ -91,14 +90,14 @@ Buildings, trees, bridges, and the static residents are scenery; collision curre
 
 ## Roadmap
 
-| Phase                                 | Focus                                                                                                                                                                                          |
-| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **v0.1 — Complete**                   | Six districts; orbit view; walking, jumping, stabilized flight; ghost trajectories and rotating-frame ballistics                                                                               |
-| **v0.2 — Current: comfort and orbit** | Chargeable launcher, speed and clear shortcuts, five-probe cap, visible body, movement ramp, varied scenery and static residents, Earth/Moon/Sun sky, eclipses, and adjustable simulation time |
-| **v0.3 — A physical place**           | Building collision, uneven terrain, a full toroidal deck, and clearer boundaries for exploration                                                                                               |
-| **v0.4 — A physics lab**              | Scale and spin presets; compare rotating and inertial reference frames; richer trajectory experiments                                                                                          |
-| **v0.5 — More ways to explore**       | Accessibility options, configurable controls, touch and gamepad support, and performance settings                                                                                              |
-| **Later experiments**                 | Shared exploration or multiplayer, subject to a separate networking and hosting design                                                                                                         |
+| Phase                                 | Focus                                                                                                                                                                                   |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **v0.1 — Complete**                   | Six districts; orbit view; walking, jumping, stabilized flight; ghost trajectories and rotating-frame ballistics                                                                        |
+| **v0.2 — Current: comfort and orbit** | Charge-only launcher and clear shortcut, five-probe cap, visible body, movement ramp, varied scenery and static residents, Earth/Moon/Sun sky, eclipses, and adjustable simulation time |
+| **v0.3 — A physical place**           | Building collision, uneven terrain, a full toroidal deck, and clearer boundaries for exploration                                                                                        |
+| **v0.4 — A physics lab**              | Scale and spin presets; compare rotating and inertial reference frames; richer trajectory experiments                                                                                   |
+| **v0.5 — More ways to explore**       | Accessibility options, configurable controls, touch and gamepad support, and performance settings                                                                                       |
+| **Later experiments**                 | Shared exploration or multiplayer, subject to a separate networking and hosting design                                                                                                  |
 
 Phases are an evolving direction, not scheduled releases. Keep each addition small enough to play and evaluate before expanding the simulation.
 

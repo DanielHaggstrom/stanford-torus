@@ -39,8 +39,6 @@
         <div class="time-control">
           <label for="time-scale">TIME</label
           ><select id="time-scale" aria-label="Simulation speed">
-            <option value="0.25">¼×</option>
-            <option value="0.5">½×</option>
             <option value="1" selected>1×</option>
             <option value="5">5×</option>
             <option value="10">10×</option>
@@ -109,18 +107,6 @@
         ><span>Ghost trajectory</span
         ><input id="ghost-toggle" type="checkbox" checked
       /></label>
-      <label class="range-label" for="launch-speed"
-        ><span>Launch speed</span
-        ><strong><span id="launch-value">28</span> m/s</strong></label
-      >
-      <input
-        id="launch-speed"
-        type="range"
-        min="8"
-        max="90"
-        value="28"
-        step="1"
-      />
       <div class="trajectory-legend">
         <i></i> PREDICTED PATH <span id="flight-time">—</span>
       </div>
@@ -191,9 +177,8 @@
     <div id="key-guide" class="key-guide" hidden>
       <span><kbd>W A S D</kbd> move</span
       ><span><kbd>SPACE</kbd> jump / rise</span><span><kbd>F</kbd> charge</span
-      ><span><kbd>[ ]</kbd> speed</span><span><kbd>C</kbd> clear</span
-      ><span><kbd>, .</kbd> time</span><span><kbd>R</kbd> reset</span
-      ><span><kbd>ESC</kbd> release mouse</span>
+      ><span><kbd>C</kbd> clear</span><span><kbd>, .</kbd> time</span
+      ><span><kbd>R</kbd> reset</span><span><kbd>ESC</kbd> release mouse</span>
     </div>
     <dialog id="help-dialog">
       <button id="close-help" class="dialog-close" aria-label="Close controls">
@@ -214,12 +199,10 @@
         <dd>Walking / powered flight</dd>
         <dt>Hold click / F / launch button</dt>
         <dd>Charge for one second; release to launch</dd>
-        <dt>[ / ] or − / +</dt>
-        <dd>Decrease / increase probe speed by 5 m/s</dd>
         <dt>C</dt>
         <dd>Clear probes. Only the newest five are kept.</dd>
         <dt>, / . or Time selector</dt>
-        <dd>Slow / speed simulation: ¼×, ½×, 1×, 5×, 10×</dd>
+        <dd>Simulation speed: 1×, 5×, 10×</dd>
         <dt>R / Esc</dt>
         <dd>Reset position / release mouse</dd>
         <dt>Orbit view</dt>

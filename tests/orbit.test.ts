@@ -4,6 +4,7 @@ import { ANGULAR_SPEED, rotateY } from "../src/physics.ts";
 import {
   EARTH_RADIUS,
   EARTH_SIDEREAL_DAY,
+  HABITAT_AXIS_TILT_DEG,
   MOON_DISTANCE,
   ORBIT_PERIOD_SECONDS,
   ORBIT_RADIUS,
@@ -72,6 +73,31 @@ test("sky positions account for station spin without an extra orbital-frame yaw"
   near(unspun.x, 0, 1e-5);
   near(unspun.y, 0, 1e-5);
   near(unspun.z, ORBIT_RADIUS, 1e-5);
+});
+
+test("the habitat axis tilts Earth's sky track away from the ring plane", () => {
+  const start = getOrbitState(0);
+  const offset = Math.asin(-start.earthPosition.y / ORBIT_RADIUS);
+  near((offset * 180) / Math.PI, HABITAT_AXIS_TILT_DEG);
+  assert.ok(
+    offset > 0.25,
+    "Earth starts visibly to the side of the ring plane",
+  );
+  const quarter = getOrbitState(ORBIT_PERIOD_SECONDS / 4);
+  near(quarter.earthPosition.y, 0, 1e-6);
+});
+
+test("the tilted spinning sky frame preserves distances and handedness", () => {
+  for (const seconds of [0, 17, 2300]) {
+    const x = inertialToHabitat({ x: 1, y: 0, z: 0 }, seconds);
+    const y = inertialToHabitat({ x: 0, y: 1, z: 0 }, seconds);
+    const z = inertialToHabitat({ x: 0, y: 0, z: 1 }, seconds);
+    for (const axis of [x, y, z]) near(Math.hypot(axis.x, axis.y, axis.z), 1);
+    near(x.x * y.x + x.y * y.y + x.z * y.z, 0);
+    near(x.y * y.z - x.z * y.y, z.x);
+    near(x.z * y.x - x.x * y.z, z.y);
+    near(x.x * y.y - x.y * y.x, z.z);
+  }
 });
 
 test("Earth blocks direct sunlight on the far side of the orbit", () => {

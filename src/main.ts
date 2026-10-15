@@ -88,7 +88,9 @@ let lastShot = -Infinity;
 let elapsed = 0;
 let realElapsed = 0;
 let simulationRate = 1;
-const TIME_RATES = [0.25, 0.5, 1, 5, 10];
+const TIME_RATES = [1, 5, 10];
+const TAP_LAUNCH_SPEED = 28;
+const FULL_LAUNCH_SPEED = 90;
 const MAX_PROBES = 5;
 let motionRamp = 0;
 let chargeSource: "mouse" | "button" | "keyboard" | null = null;
@@ -98,7 +100,6 @@ let fixedAccumulator = 0;
 let ghostRefresh = 0;
 const STEP = 1 / 120;
 const eyeHeight = 1.7;
-const launchSpeed = element<HTMLInputElement>("launch-speed");
 const ghostToggle = element<HTMLInputElement>("ghost-toggle");
 const help = element<HTMLDialogElement>("help-dialog");
 const ghostPositions = new Float32Array(1600 * 3);
@@ -236,13 +237,14 @@ function explorationActive() {
 }
 
 function effectiveLaunchSpeed() {
-  const baseSpeed = Number(launchSpeed.value);
-  return baseSpeed + (90 - baseSpeed) * Math.min(chargeSeconds, 1);
+  return (
+    TAP_LAUNCH_SPEED +
+    (FULL_LAUNCH_SPEED - TAP_LAUNCH_SPEED) * Math.min(chargeSeconds, 1)
+  );
 }
 
 function updateLauncherUI() {
   const speed = Math.round(effectiveLaunchSpeed());
-  element("launch-value").textContent = String(speed);
   element("charge-meter").setAttribute(
     "value",
     String(Math.min(chargeSeconds, 1)),
@@ -256,12 +258,6 @@ function updateLauncherUI() {
   element("launch-button").title = explorationActive()
     ? "Hold to charge; release to launch"
     : "Resume exploration to use the launcher";
-}
-
-function setLaunchSpeed(speed: number) {
-  launchSpeed.value = String(THREE.MathUtils.clamp(speed, 8, 90));
-  updateLauncherUI();
-  refreshGhost();
 }
 
 function cancelCharge() {
@@ -497,7 +493,7 @@ function removeProbe(probe: Probe) {
   (probe.trail.material as THREE.Material).dispose();
 }
 
-function launch(speed = Number(launchSpeed.value)) {
+function launch(speed = TAP_LAUNCH_SPEED) {
   if (!explorationActive() || realElapsed - lastShot < 0.16) return;
   lastShot = realElapsed;
   recoil = 1;
@@ -632,10 +628,6 @@ element("clear-button").addEventListener("click", () => {
   clearProbes();
   element("clear-button").blur();
 });
-launchSpeed.addEventListener("input", () => {
-  updateLauncherUI();
-  refreshGhost();
-});
 element<HTMLSelectElement>("time-scale").addEventListener("change", (event) => {
   setTimeRate(Number((event.target as HTMLSelectElement).value));
   (event.target as HTMLSelectElement).blur();
@@ -713,14 +705,6 @@ document.addEventListener("keydown", (event) => {
     return;
   }
   if (view !== "explore") return;
-  if (["BracketLeft", "Minus", "BracketRight", "Equal"].includes(event.code)) {
-    event.preventDefault();
-    setLaunchSpeed(
-      Number(launchSpeed.value) +
-        (["BracketRight", "Equal"].includes(event.code) ? 5 : -5),
-    );
-    return;
-  }
   if (event.code === "KeyC" && !event.repeat) {
     cancelCharge();
     clearProbes();
