@@ -22,4 +22,6 @@ through the skipped interval. Pause and time-speed controls use the shared clock
 
 This is a geometric tracking model. It does not simulate electrical output,
 thermal balance, actuator inertia, or detailed shadowing by other structures.
-All geometry, cell grids, and radiator fins are generated in code.
+Each panel side has a single opaque skin. Solar-cell seams and radiator channels
+use antialiased procedural shading that fades when details become smaller than a
+pixel, avoiding overlapping surfaces and distant shimmer. No textures are needed.

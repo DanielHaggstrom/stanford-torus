@@ -23,10 +23,11 @@ gesture. Pause, help, view changes, reset, focus loss, hiding the page, and resi
 clear all held input; cancelled shots do not fire. Touch exploration resumes
 explicitly after losing focus or opening help.
 
-Automatic graphics caps the drawing pixel ratio at 1 with touch controls and
-updates the trajectory preview at 15 Hz. Desktop retains its previous cap of
-1.75 and 24 Hz preview. Full restores that budget on touch; Balanced selects the
-lighter budget on either layout. Neither preset changes physics, simulation
+Automatic graphics caps the drawing pixel ratio at 1 with touch controls.
+Desktop retains its cap of 1.75. Full restores that budget on touch; Balanced
+selects the lighter budget on either layout. The trajectory preview follows
+the current camera and launch state every rendered frame, with unchanged shots
+cached. Neither preset changes physics, simulation
 time, geography, or scenery. No new dependency or server runtime is required.
 
 ## Validation

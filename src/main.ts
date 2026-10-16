@@ -13,6 +13,7 @@ import { buildSky } from "./sky";
 import { buildAvatar } from "./avatar";
 import { buildAudio } from "./audio";
 import { buildSceneryCollision } from "./scenery-collision";
+import { createTrajectoryCache } from "./trajectory-cache";
 import { isInsideHabitat } from "./habitat-volume";
 import { resolvePlayerDeck, isOverDeck } from "./player-boundaries";
 import { AXIS_SUNLIGHT_THRESHOLD } from "./axis-tracking";
@@ -92,6 +93,17 @@ const camera = new THREE.PerspectiveCamera(
 );
 const habitat = buildHabitat(scene);
 const scenery = buildSceneryCollision(habitat.colliders);
+const trajectoryCache = createTrajectoryCache((shot: MotionState) => {
+  const impact = scenery.firstImpact(shot, 30);
+  return {
+    impact,
+    points: scenery.sampleTrajectory(shot, {
+      duration: impact?.time ?? 30,
+      step: 0.04,
+      stopAtCollision: false,
+    }),
+  };
+});
 scene.background = null;
 const sky = buildSky();
 const avatar = buildAvatar();
@@ -155,7 +167,6 @@ let chargePointerId: number | null = null;
 let chargeStartedAt = 0;
 let recoil = 0;
 let fixedAccumulator = 0;
-let ghostRefresh = 0;
 const STEP = 1 / 120;
 const eyeHeight = 1.7;
 const ghostToggle = element<HTMLInputElement>("ghost-toggle");
@@ -181,9 +192,11 @@ const ghost = new THREE.Line(
     transparent: true,
     opacity: 0.9,
     depthTest: true,
+    depthWrite: false,
   }),
 );
 ghost.frustumCulled = false;
+ghost.renderOrder = 1;
 scene.add(ghost);
 // Screen-sized markers keep the ghost readable against both sky and pale paving.
 const ghostDotGeometry = new THREE.BufferGeometry();
@@ -200,6 +213,7 @@ const ghostDotBorder = new THREE.Points(
     color: "#16352d",
     size: 5,
     sizeAttenuation: false,
+    transparent: true,
     depthTest: false,
     depthWrite: false,
     toneMapped: false,
@@ -211,6 +225,7 @@ const ghostDots = new THREE.Points(
     color: "#d9ffab",
     size: 3,
     sizeAttenuation: false,
+    transparent: true,
     depthTest: false,
     depthWrite: false,
     toneMapped: false,
@@ -227,8 +242,11 @@ const impactMarker = new THREE.Mesh(
     side: THREE.DoubleSide,
     transparent: true,
     opacity: 0.9,
+    depthTest: false,
+    depthWrite: false,
   }),
 );
+impactMarker.renderOrder = 4;
 scene.add(impactMarker);
 const probeGeometry = new THREE.IcosahedronGeometry(0.24, 1);
 const probeMaterial = new THREE.MeshStandardMaterial({
@@ -792,12 +810,7 @@ function refreshGhost() {
   impactMarker.visible = false;
   if (!ghost.visible) return;
   const shot = currentShot();
-  const impact = scenery.firstImpact(shot, 30);
-  const points = scenery.sampleTrajectory(shot, {
-    duration: impact?.time ?? 30,
-    step: 0.04,
-    stopAtCollision: false,
-  });
+  const { points, impact } = trajectoryCache.get(shot);
   points.forEach((point, index) => {
     ghostPositions[index * 3] = point.x;
     ghostPositions[index * 3 + 1] = point.y;
@@ -1349,11 +1362,8 @@ function frame(now: number) {
       }
     }
   }
-  ghostRefresh += dt;
-  if (view === "explore" && ghostRefresh > 1 / renderBudget.ghostHz) {
-    refreshGhost();
-    ghostRefresh = 0;
-  }
+  // The preview must use the same pose as this frame's camera, even on touch.
+  if (view === "explore") refreshGhost();
   const inertialView = view !== "explore";
   scene.rotation.y = inertialView
     ? (elapsed * ANGULAR_SPEED) % (Math.PI * 2)

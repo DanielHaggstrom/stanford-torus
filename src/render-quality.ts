@@ -2,7 +2,6 @@ export type GraphicsQuality = "auto" | "full" | "balanced";
 
 export interface RenderBudget {
   pixelRatio: number;
-  ghostHz: number;
 }
 
 /** Keep the desktop budget unless touch controls or a lighter preset are used. */
@@ -17,6 +16,5 @@ export function getRenderBudget(
     : 1;
   return {
     pixelRatio: Math.min(ratio, balanced ? 1 : 1.75),
-    ghostHz: balanced ? 15 : 24,
   };
 }

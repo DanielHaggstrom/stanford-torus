@@ -7,7 +7,7 @@ probes to see how trajectories curve in a rotating reference frame.
 [Build checks](https://github.com/DanielHaggstrom/stanford-torus/actions) ·
 [MIT license](LICENSE)
 
-**Version 0.7.0** · Keyboard, mouse, or touch · WebGL 2
+**Version 0.7.1** · Keyboard, mouse, or touch · WebGL 2
 
 ## Playing
 

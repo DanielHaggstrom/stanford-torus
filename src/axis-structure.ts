@@ -35,7 +35,7 @@ function strut(a: THREE.Vector3, b: THREE.Vector3, width: number): Part {
   ) };
 }
 
-/** A reusable wing's small frames and fins merge into one instanced draw. */
+/** A reusable wing's frame components merge into one instanced draw. */
 function boxDetails(parts: Part[]): THREE.BufferGeometry {
   const cube = new THREE.BoxGeometry().toNonIndexed();
   const vertices = cube.getAttribute("position");
@@ -60,29 +60,43 @@ function boxDetails(parts: Part[]): THREE.BufferGeometry {
   return geometry;
 }
 
-/** Opaque blue cells on the +Z side; gaps expose the panel's dark substrate. */
-function solarCells(): THREE.BufferGeometry {
-  const positions: number[] = [];
-  const normals: number[] = [];
-  const colors: number[] = [];
-  const palette = ["#163857", "#204868", "#1a3e61", "#254b72"].map((color) => new THREE.Color(color));
-  for (let column = 0; column < 14; column++) {
-    for (let row = 0; row < 5; row++) {
-      const x = (column - 6.5) * 3.85;
-      const y = (row - 2) * 4.03;
-      const color = palette[(column * 3 + row) % palette.length];
-      for (const [dx, dy] of [[-1, -1], [1, -1], [1, 1], [-1, -1], [1, 1], [-1, 1]]) {
-        positions.push(x + dx * 1.86, y + dy * 1.94, 0.225);
-        normals.push(0, 0, 1);
-        colors.push(color.r, color.g, color.b);
-      }
-    }
-  }
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setAttribute("normal", new THREE.Float32BufferAttribute(normals, 3));
-  geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
-  return geometry;
+/** Cell seams and radiator channels share their skin's depth and fade below a pixel. */
+function panelMaterial(kind: "solar" | "radiator"): THREE.MeshStandardMaterial {
+  const solar = kind === "solar";
+  const material = new THREE.MeshStandardMaterial({
+    color: solar ? "#204868" : "#d8ddd5",
+    roughness: solar ? 0.45 : 0.78,
+    metalness: solar ? 0.6 : 0.2,
+  });
+  material.customProgramCacheKey = () => `panel-skin-${kind}`;
+  material.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace("#include <common>", "#include <common>\nvarying vec2 vPanelPosition;")
+      .replace("#include <begin_vertex>", "#include <begin_vertex>\nvPanelPosition = position.xy;");
+    shader.fragmentShader = shader.fragmentShader
+      .replace("#include <common>", "#include <common>\nvarying vec2 vPanelPosition;")
+      .replace("#include <color_fragment>", solar ? `
+        #include <color_fragment>
+        vec2 cell = (vPanelPosition + vec2(26.95, 10.075)) / vec2(3.85, 4.03);
+        vec2 footprint = max(fwidth(cell), vec2(0.00001));
+        vec2 edgeDistance = min(fract(cell), 1.0 - fract(cell));
+        vec2 interior = smoothstep(vec2(0.018) - footprint, vec2(0.018) + footprint, edgeDistance);
+        float detail = 1.0 - smoothstep(0.18, 0.5, max(footprint.x, footprint.y));
+        float seam = (1.0 - interior.x * interior.y) * detail;
+        float variation = mod(floor(cell.x) * 3.0 + floor(cell.y), 4.0) / 3.0;
+        diffuseColor.rgb *= mix(vec3(0.82, 0.9, 0.94), vec3(1.1, 1.05, 1.04), mix(0.5, variation, detail));
+        diffuseColor.rgb *= 1.0 - seam * 0.42;
+      ` : `
+        #include <color_fragment>
+        float channel = vPanelPosition.x / 2.0;
+        float footprint = max(fwidth(channel), 0.00001);
+        float edgeDistance = abs(fract(channel + 0.5) - 0.5);
+        float detail = 1.0 - smoothstep(0.18, 0.5, footprint);
+        float rib = 1.0 - smoothstep(0.035 - footprint, 0.035 + footprint, edgeDistance);
+        diffuseColor.rgb *= 1.0 - rib * detail * 0.2;
+      `);
+  };
+  return material;
 }
 
 function dishGeometry(): THREE.BufferGeometry {
@@ -210,9 +224,8 @@ export function buildAxisStructure(parent: THREE.Group, materials: AxisMaterials
   instances(dishGeometry(), dishMaterial, dishParts, "Communications dishes");
   instances(cylinder, materials.structure, dishSupportParts, "Dish feeds and mounts");
 
-  const substrate = new THREE.MeshStandardMaterial({ color: "#202e34", roughness: 0.65, metalness: 0.45 });
-  const solar = new THREE.MeshStandardMaterial({ color: "#ffffff", vertexColors: true, roughness: 0.3, metalness: 0.6 });
-  const radiator = new THREE.MeshStandardMaterial({ color: "#d8ddd5", roughness: 0.78, metalness: 0.2 });
+  const solar = panelMaterial("solar");
+  const radiator = panelMaterial("radiator");
   const edge = new THREE.MeshStandardMaterial({ color: "#899a9f", roughness: 0.42, metalness: 0.7 });
   const panelBases: Part[] = WING_ROWS.flatMap((y) => [-1, 1].map((side) => box(side * 40, y, 0, 1, 1, 1)));
   const wingMeshes: THREE.InstancedMesh[] = [];
@@ -224,20 +237,16 @@ export function buildAxisStructure(parent: THREE.Group, materials: AxisMaterials
     wingMeshes.push(object);
     return object;
   };
-  wing(new THREE.BoxGeometry(WING_SPAN, WING_WIDTH, 0.4), substrate, "Solar-radiator wing substrates");
-  wing(solarCells(), solar, "Sun-facing solar cells");
-  const reverse = new THREE.PlaneGeometry(54.8, 20.8).rotateY(Math.PI).translate(0, 0, -0.225);
-  wing(reverse, radiator, "Shaded radiator faces");
+  // The perimeter closes the two skins. A solid box behind them would compete
+  // for the same depth-buffer values when viewed from the habitat.
   const frameParts = [
     box(0, -10.7, 0, WING_SPAN, 0.6, 0.65), box(0, 10.7, 0, WING_SPAN, 0.6, 0.65),
     box(-27.7, 0, 0, 0.6, WING_WIDTH, 0.65), box(27.7, 0, 0, 0.6, WING_WIDTH, 0.65),
-    box(0, 0, -0.45, WING_SPAN, 0.3, 0.3),
   ];
-  for (let line = -6; line <= 6; line++) frameParts.push(box(line * 3.85, 0, 0.25, 0.035, 20.2, 0.02));
-  wing(boxDetails(frameParts), edge, "Wing frames and solar-cell busbars");
-  const fins: Part[] = [];
-  for (let fin = -13; fin <= 13; fin++) fins.push(box(fin * 2, 0, -0.32, 0.08, 20.5, 0.18));
-  wing(boxDetails(fins), radiator, "Radiator cooling ribs");
+  wing(boxDetails(frameParts), edge, "Solar-radiator wing substrates");
+  wing(new THREE.PlaneGeometry(54.8, 20.8).translate(0, 0, 0.2), solar, "Sun-facing solar cells");
+  const reverse = new THREE.PlaneGeometry(54.8, 20.8).rotateY(Math.PI).translate(0, 0, -0.2);
+  wing(reverse, radiator, "Shaded radiator faces");
 
   const hinge = new THREE.Matrix4();
   const matrix = new THREE.Matrix4();
