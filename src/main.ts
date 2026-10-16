@@ -5,20 +5,21 @@ import {
   ANGULAR_SPEED,
   FLOOR_RADIUS,
   GRAVITY,
-  advanceBallistic,
-  firstHabitatImpact,
   floorNormal,
   resolveHabitatCollision,
-  sampleTrajectory,
   stepFreeFlight,
 } from "./physics";
 import type { MotionState } from "./physics";
 import { buildSky } from "./sky";
 import { buildAvatar } from "./avatar";
+import { buildAudio } from "./audio";
+import { buildSceneryCollision } from "./scenery-collision";
+import { isInsideHabitat } from "./habitat-volume";
 import { updateMotionRamp, walkSpeed, flightSpeed } from "./movement";
 import {
   CHARGE_DELAY_SECONDS,
   TAP_LAUNCH_SPEED,
+  FULL_LAUNCH_SPEED,
   chargeFraction,
   launchSpeed,
 } from "./launcher";
@@ -89,9 +90,12 @@ const camera = new THREE.PerspectiveCamera(
   6000,
 );
 const habitat = buildHabitat(scene);
+const scenery = buildSceneryCollision(habitat.colliders);
 scene.background = null;
 const sky = buildSky();
 const avatar = buildAvatar();
+const audio = buildAudio();
+let soundMuted = false;
 renderer.autoClear = false;
 const overviewPosition = new THREE.Vector3(600, 220, 300);
 const overviewUp = new THREE.Vector3(-0.26, 0.805, 0.53).normalize();
@@ -116,6 +120,7 @@ let orientationLockedByGame = false;
 const portraitViewport = matchMedia("(orientation: portrait)");
 let flight = false;
 let grounded = true;
+let sceneryGrounded = false;
 let tramSupport: TramSupport | null = null;
 let lastTramPush = -Infinity;
 const OPENING_YAW = Math.PI;
@@ -380,6 +385,37 @@ function explorationActive() {
   );
 }
 
+function updateAudio(deltaSeconds = 0) {
+  const surface = tramSupport && grounded
+    ? tramSurfaceVelocity(player.position, tramSupport, elapsed)
+    : { x: 0, y: 0, z: 0 };
+  audio.update({
+    position: camera.position,
+    forward: direction,
+    up,
+    relativeSpeed: Math.hypot(
+      player.velocity.x - surface.x,
+      player.velocity.y - surface.y,
+      player.velocity.z - surface.z,
+    ),
+    grounded,
+    flying: flight,
+    active: explorationActive() && !document.hidden && document.hasFocus(),
+    simSeconds: elapsed,
+    deltaSeconds,
+    simulationRate,
+  });
+}
+
+function toggleSound() {
+  soundMuted = !soundMuted;
+  audio.setMuted(soundMuted);
+  const button = element("sound-toggle");
+  button.textContent = soundMuted ? "Sound off" : "Sound on";
+  button.setAttribute("aria-pressed", String(!soundMuted));
+  button.setAttribute("aria-label", soundMuted ? "Unmute sound (M)" : "Mute sound (M)");
+}
+
 function heldChargeSeconds() {
   return chargeSource
     ? Math.max(0, (performance.now() - chargeStartedAt) / 1000)
@@ -460,12 +496,14 @@ function stepTimeRate(delta: number) {
 }
 
 function resetPlayer() {
+  audio.reset();
   touch.reset();
   player = {
     position: { x: FLOOR_RADIUS, y: 0, z: 0 },
     velocity: { x: 0, y: 0, z: 0 },
   };
   grounded = true;
+  sceneryGrounded = false;
   tramSupport = null;
   motionRamp = 0;
   yaw = OPENING_YAW;
@@ -488,7 +526,10 @@ function movementDescription() {
 function setFlight(enabled: boolean) {
   flight = enabled;
   touch.setFlight(enabled);
-  if (enabled) tramSupport = null;
+  if (enabled) {
+    tramSupport = null;
+    sceneryGrounded = false;
+  }
   element("walk-button").classList.toggle("selected", !flight);
   element("fly-button").classList.toggle("selected", flight);
   element("mode-description").textContent = movementDescription();
@@ -545,6 +586,7 @@ function showPause() {
     element("drag-hint").hidden = !pointerUnavailable;
   }
   updateLauncherUI();
+  updateAudio();
 }
 
 function pauseExploration() {
@@ -567,6 +609,7 @@ function jumpPlayer() {
     .addScaledVector(up, 8)
     .clone();
   grounded = false;
+  sceneryGrounded = false;
   tramSupport = null;
 }
 
@@ -625,6 +668,7 @@ function enterHabitat(capture = true) {
 }
 
 function orbitView() {
+  audio.reset();
   touch.setActive(false);
   touchResumed = false;
   document.documentElement.classList.remove("systems-open", "map-collapsed");
@@ -634,6 +678,7 @@ function orbitView() {
   document.exitPointerLock?.();
   keys.clear();
   view = "orbit";
+  updateAudio();
   fallbackResumed = false;
   dragLooking = false;
   document.body.className = "orbiting";
@@ -672,6 +717,7 @@ function toggleOrbitView() {
 
 function skipToOrbitPhase(targetPhase: number) {
   if (view !== "orbit") return;
+  audio.reset();
   const previousTime = elapsed;
   elapsed = nextOrbitOccurrence(
     elapsed,
@@ -694,8 +740,12 @@ function skipToOrbitPhase(targetPhase: number) {
   }
   player.velocity = { x: 0, y: 0, z: 0 };
   tramSupport = null;
+  const roofHeight = scenery.supportHeight(player.position, player.position, 0.02);
+  sceneryGrounded = roofHeight !== null && Math.abs(
+    FLOOR_RADIUS - Math.hypot(player.position.x, player.position.z) - roofHeight,
+  ) < 0.025;
   grounded =
-    Math.hypot(player.position.x, player.position.z) >= FLOOR_RADIUS - 0.001;
+    sceneryGrounded || Math.hypot(player.position.x, player.position.z) >= FLOOR_RADIUS - 0.001;
   updateLauncherUI();
   updateTelemetry();
   orbitMap.update(elapsed);
@@ -718,6 +768,13 @@ function currentShot(speed = effectiveLaunchSpeed()): MotionState {
   }
   // Avoid starting beyond the side wall when aiming outwards near an edge.
   origin.y = THREE.MathUtils.clamp(origin.y, -21.9, 21.9);
+  // A protruding launcher must not spawn its probe through a nearby thin wall.
+  const muzzleContact = scenery.firstImpact({
+    position: camera.position,
+    velocity: origin.clone().sub(camera.position),
+  }, 1, { angularSpeed: 0 });
+  if (muzzleContact)
+    origin.copy(muzzleContact.position).addScaledVector(muzzleContact.normal, 0.01);
   const initialVelocity = direction
     .clone()
     .multiplyScalar(speed)
@@ -738,7 +795,12 @@ function refreshGhost() {
   impactMarker.visible = false;
   if (!ghost.visible) return;
   const shot = currentShot();
-  const points = sampleTrajectory(shot, { duration: 30, step: 0.04 });
+  const impact = scenery.firstImpact(shot, 30);
+  const points = scenery.sampleTrajectory(shot, {
+    duration: impact?.time ?? 30,
+    step: 0.04,
+    stopAtCollision: false,
+  });
   points.forEach((point, index) => {
     ghostPositions[index * 3] = point.x;
     ghostPositions[index * 3 + 1] = point.y;
@@ -766,7 +828,6 @@ function refreshGhost() {
         points[i].z - points[i - 1].z,
       );
   ghostGeometry.getAttribute("lineDistance").needsUpdate = true;
-  const impact = firstHabitatImpact(shot, 30);
   element("flight-time").textContent = impact
     ? `${impact.time.toFixed(1)} s to contact`
     : "> 30 s";
@@ -795,6 +856,8 @@ function launch(speed = TAP_LAUNCH_SPEED) {
   recoil = 1;
   if (probes.length >= MAX_PROBES) removeProbe(probes.shift()!);
   const state = currentShot(speed);
+  updateAudio();
+  audio.shot((speed - TAP_LAUNCH_SPEED) / (FULL_LAUNCH_SPEED - TAP_LAUNCH_SPEED));
   const mesh = new THREE.Mesh(probeGeometry, probeMaterial);
   mesh.position.copy(state.position);
   const trailGeometry = new THREE.BufferGeometry();
@@ -895,13 +958,19 @@ function simulatePlayer(dt: number, simTime: number) {
       .lerp(desired, 1 - Math.exp(-12 * dt));
     position.copy(player.position).addScaledVector(velocity, dt);
     const rho = Math.hypot(position.x, position.z);
-    const supportRadius =
-      FLOOR_RADIUS -
-      (tramSupport
+    const sceneryHeight = sceneryGrounded
+      ? scenery.supportHeight(position, previousState.position)
+      : null;
+    if (sceneryGrounded && sceneryHeight === null) {
+      // Leave a roof at its current height; gravity takes over on the next step.
+      grounded = false;
+    } else {
+      const supportRadius = FLOOR_RADIUS - (tramSupport
         ? TRAM_DECK_HEIGHT
-        : walkingSupportHeight(position, previousState.position, endTime));
-    position.x *= supportRadius / rho;
-    position.z *= supportRadius / rho;
+        : sceneryHeight ?? walkingSupportHeight(position, previousState.position, endTime));
+      position.x *= supportRadius / rho;
+      position.z *= supportRadius / rho;
+    }
     if (tramSupport)
       velocity.add(tramSurfaceVelocity(position, tramSupport, endTime));
     player = resolveHabitatCollision(
@@ -932,7 +1001,11 @@ function simulatePlayer(dt: number, simTime: number) {
   );
   player = contact.state;
   tramSupport = flight ? null : contact.support;
-  grounded = contact.grounded;
+  const solidContact = scenery.resolvePlayer(previousState, player, { flying: flight });
+  player = solidContact.state;
+  sceneryGrounded = solidContact.grounded;
+  if (sceneryGrounded) tramSupport = null;
+  grounded = contact.grounded || sceneryGrounded;
   if (contact.pushed && endTime - lastTramPush > 1.5) {
     lastTramPush = endTime;
     notice("Tram pushed you clear of the track");
@@ -965,6 +1038,22 @@ element("touch-systems-toggle").addEventListener("click", () => {
   element("touch-systems-toggle").blur();
 });
 element("graphics-quality").addEventListener("change", applyRenderBudget);
+
+element("sound-toggle").addEventListener("click", () => {
+  toggleSound();
+  element("sound-toggle").blur();
+});
+element<HTMLInputElement>("sound-volume").addEventListener("input", (event) => {
+  const value = Number((event.target as HTMLInputElement).value);
+  audio.setVolume(value / 100);
+  element("sound-volume-value").textContent = `${value}%`;
+});
+
+// WebAudio may only start after a real gesture, including the first touch move.
+document.addEventListener("pointerdown", () => void audio.unlock(), { capture: true });
+document.addEventListener("keydown", (event) => {
+  if (!event.repeat) void audio.unlock();
+}, { capture: true });
 element("landscape-button").addEventListener("click", () => void useLandscape());
 element("touch-fullscreen").addEventListener("click", () => {
   if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
@@ -1009,6 +1098,7 @@ element("help-button").addEventListener("click", () => {
   document.exitPointerLock?.();
   keys.clear();
   help.showModal();
+  updateAudio();
   if (touch.enabled) touchResumed = false;
   touch.setActive(false);
 });
@@ -1086,6 +1176,10 @@ document.addEventListener("keydown", (event) => {
   }
   const tag = (event.target as HTMLElement)?.tagName;
   if (tag === "INPUT" || tag === "SELECT" || tag === "BUTTON") return;
+  if (event.code === "KeyM") {
+    if (!event.repeat) toggleSound();
+    return;
+  }
   if (["Comma", "Period"].includes(event.code)) {
     event.preventDefault();
     stepTimeRate(event.code === "Period" ? 1 : -1);
@@ -1119,8 +1213,7 @@ document.addEventListener("keydown", (event) => {
     resetPlayer();
     notice("Returned to the Commons");
   }
-  if (event.code === "Digit1") setFlight(false);
-  if (event.code === "Digit2") setFlight(true);
+  if (event.code === "KeyV") setFlight(!flight);
   if (event.code === "Space") jumpPlayer();
 });
 document.addEventListener("keyup", (event) => {
@@ -1132,6 +1225,7 @@ window.addEventListener("blur", () => {
   cancelCharge();
   motionRamp = 0;
   if (touch.enabled) pauseExploration();
+  updateAudio();
 });
 document.addEventListener("visibilitychange", () => {
   keys.clear();
@@ -1139,7 +1233,10 @@ document.addEventListener("visibilitychange", () => {
   fixedAccumulator = 0;
   previous = performance.now();
   if (touch.enabled && document.hidden) pauseExploration();
+  updateAudio();
 });
+window.addEventListener("pagehide", () => audio.reset());
+if (import.meta.hot) import.meta.hot.dispose(() => audio.dispose());
 window.addEventListener("resize", () => {
   applyRenderBudget();
   touch.reset();
@@ -1187,6 +1284,11 @@ function updateTelemetry() {
   );
   element("district").textContent =
     view === "explore" ? nearest.name.toUpperCase() : "STANFORD TORUS / 01";
+  element("location-detail").textContent = view === "orbit"
+    ? "INERTIAL REFERENCE FRAME"
+    : isInsideHabitat(camera.position)
+      ? "HABITAT 01 / ROTATING REFERENCE FRAME"
+      : "OUTSIDE ENCLOSURE / VACUUM";
   const marker = document.getElementById("map-position")!;
   marker.setAttribute("cx", String(40 + 29 * Math.cos(angle)));
   marker.setAttribute("cy", String(40 + 29 * Math.sin(angle)));
@@ -1198,7 +1300,10 @@ function frame(now: number) {
   requestAnimationFrame(frame);
   const dt = Math.min((now - previous) / 1000, 0.1);
   previous = now;
-  if (document.hidden || landscapeBlocked) return;
+  if (document.hidden || landscapeBlocked) {
+    updateAudio();
+    return;
+  }
   const active = explorationActive();
   const simulationRunning = !help.open && (active || view === "orbit");
   const simulationDelta = simulationRunning ? dt * simulationRate : 0;
@@ -1228,7 +1333,7 @@ function frame(now: number) {
       const probe = probes[i];
       probe.age += simulationDelta;
       if (!probe.stopped) {
-        const result = advanceBallistic(probe.state, simulationDelta);
+        const result = scenery.advanceBallistic(probe.state, simulationDelta);
         probe.state = result.state;
         probe.stopped = !!result.impact;
         probe.mesh.position.copy(probe.state.position);
@@ -1265,6 +1370,7 @@ function frame(now: number) {
     inertialView ? "inertial" : "habitat",
   );
   habitat.update(elapsed, inertialView ? getOrbitState(elapsed) : orbit);
+  updateAudio(dt);
   const avatarSurfaceVelocity =
     tramSupport && grounded
       ? tramSurfaceVelocity(player.position, tramSupport, elapsed)

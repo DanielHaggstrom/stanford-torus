@@ -1,6 +1,8 @@
 import * as THREE from "three";
-import { buildTramSystem } from "./trams";
-import { stationSupportHeight } from "./tram-physics";
+import { buildTramSystem } from "./trams.ts";
+import { stationSupportHeight } from "./tram-physics.ts";
+import { buildHabitatStructure } from "./habitat-structure.ts";
+import type { StaticCollider } from "./scenery-collision.ts";
 
 /** Metres, in the habitat's co-rotating frame. The spin axis is world Y. */
 export const HABITAT_RADIUS = 210;
@@ -23,6 +25,7 @@ export interface HabitatLighting {
 
 export interface HabitatHandle {
   root: THREE.Group;
+  colliders: readonly StaticCollider[];
   update: (elapsedSeconds: number, lighting?: HabitatLighting) => void;
   dispose: () => void;
 }
@@ -207,7 +210,7 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
     roofGlass: new THREE.MeshBasicMaterial({
       color: "#6bbdd5",
       transparent: true,
-      opacity: 0.045,
+      opacity: 0.025,
       side: THREE.DoubleSide,
       depthWrite: false,
     }),
@@ -220,6 +223,30 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
     }),
   };
 
+  const colliders: StaticCollider[] = [];
+  const addCollider = (
+    geometry: THREE.BufferGeometry,
+    matrix: THREE.Matrix4,
+    kind: string,
+  ) => {
+    if (!geometry.boundingBox) geometry.computeBoundingBox();
+    const bounds = geometry.boundingBox!;
+    const center = bounds.getCenter(new THREE.Vector3()).applyMatrix4(matrix);
+    const size = bounds.getSize(new THREE.Vector3()).multiplyScalar(0.5);
+    const axes = [0, 1, 2].map((column) => new THREE.Vector3().setFromMatrixColumn(matrix, column));
+    const scale = axes.map((axis) => axis.length());
+    axes.forEach((axis) => axis.normalize());
+    colliders.push({
+      center: { x: center.x, y: center.y, z: center.z },
+      halfSize: { x: size.x * scale[0], y: size.y * scale[1], z: size.z * scale[2] },
+      axes: [
+        { x: axes[0].x, y: axes[0].y, z: axes[0].z },
+        { x: axes[1].x, y: axes[1].y, z: axes[1].z },
+        { x: axes[2].x, y: axes[2].y, z: axes[2].z },
+      ],
+      kind,
+    });
+  };
   const add = <T extends THREE.Object3D>(object: T): T => {
     root.add(object);
     return object;
@@ -230,11 +257,13 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
     geometry: THREE.BufferGeometry,
     material: THREE.Material,
     data: Instance[],
+    collisionKind?: string,
   ) => {
     const result = new THREE.InstancedMesh(geometry, material, data.length);
     const color = new THREE.Color();
     data.forEach((instance, i) => {
       result.setMatrixAt(i, instance.matrix);
+      if (collisionKind) addCollider(geometry, instance.matrix, collisionKind);
       if (instance.color !== undefined)
         result.setColorAt(i, color.set(instance.color));
     });
@@ -308,10 +337,52 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
   const crops: Instance[] = [];
   const railPosts: Instance[] = [];
   const dashes: Instance[] = [];
-  const arches: Instance[] = [];
   const beacons: THREE.Mesh[] = [];
   const boxGeometry = new THREE.BoxGeometry(1, 1, 1);
   const cylinderGeometry = new THREE.CylinderGeometry(1, 1, 1, 6);
+  const addRoofColliders = (parts: Instance[], kind: string) => {
+    for (const { matrix } of parts) {
+      const position = new THREE.Vector3();
+      const rotation = new THREE.Quaternion();
+      const dimensions = new THREE.Vector3();
+      matrix.decompose(position, rotation, dimensions);
+      const anchor = new THREE.Matrix4().compose(position, rotation, new THREE.Vector3(1, 1, 1));
+      const slope = Math.atan2(dimensions.y, dimensions.z / 2);
+      const slopeLength = Math.hypot(dimensions.y, dimensions.z / 2);
+      for (const side of [-1, 1]) {
+        const panel = new THREE.Matrix4().compose(
+          new THREE.Vector3(0, dimensions.y / 2, side * dimensions.z / 4),
+          new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), side * slope),
+          new THREE.Vector3(dimensions.x, 0.08, slopeLength + 0.04),
+        );
+        addCollider(boxGeometry, anchor.clone().multiply(panel), kind);
+      }
+      // Thin stepped caps approximate the triangular gables from the inside.
+      // Keeping every box within the visible triangle avoids invisible ledges
+      // above the roof slopes; those slopes close the final narrow ridge tip.
+      const capThickness = Math.min(0.06, dimensions.x);
+      for (const end of [-1, 1]) {
+        for (let strip = 0; strip < 6; strip++) {
+          const bottom = (strip / 6) * 0.98;
+          const top = ((strip + 1) / 6) * 0.98;
+          const cap = new THREE.Matrix4().compose(
+            new THREE.Vector3(
+              end * (dimensions.x - capThickness) / 2,
+              dimensions.y * (bottom + top) / 2,
+              0,
+            ),
+            new THREE.Quaternion(),
+            new THREE.Vector3(
+              capThickness,
+              dimensions.y * (top - bottom),
+              dimensions.z * (1 - top),
+            ),
+          );
+          addCollider(boxGeometry, anchor.clone().multiply(cap), `${kind} gable`);
+        }
+      }
+    }
+  };
 
   const placeBox = (
     collection: Instance[],
@@ -1076,6 +1147,7 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
     pedestal.matrix.copy(
       floorMatrix(district.angle + 0.052, sculptureAcross, 0.3),
     );
+    addCollider(pedestal.geometry, pedestal.matrix, "sculpture pedestal");
     const beaconMaterial = new THREE.MeshStandardMaterial({
       color: district.color,
       emissive: district.color,
@@ -1099,21 +1171,23 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
     halo.matrix.copy(floorMatrix(district.angle + 0.052, sculptureAcross, 2.3));
   }
 
-  instances(boxGeometry, materials.body, boxes);
+  instances(boxGeometry, materials.body, boxes, "building");
   instances(boxGeometry, materials.glass, glass);
-  instances(boxGeometry, materials.trim, trims);
-  instances(boxGeometry, materials.solar, roofs);
-  instances(boxGeometry, materials.hedge, roofGardens);
+  instances(boxGeometry, materials.trim, trims, "building trim");
+  instances(boxGeometry, materials.solar, roofs, "roof");
+  instances(boxGeometry, materials.hedge, roofGardens, "planter");
   const roofGeometry = pitchedRoofGeometry();
   instances(roofGeometry, materials.pitchedRoof, pitchedRoofs);
-  instances(boxGeometry, materials.greenhouse, greenhouseWalls);
+  addRoofColliders(pitchedRoofs, "pitched roof");
+  instances(boxGeometry, materials.greenhouse, greenhouseWalls, "greenhouse");
   instances(roofGeometry, materials.greenhouse, greenhouseRoofs);
-  instances(new THREE.CylinderGeometry(1, 0.8, 1, 6), materials.trunk, trunks);
-  instances(new THREE.IcosahedronGeometry(1, 1), materials.leaves, leaves);
-  instances(new THREE.ConeGeometry(1, 1, 6), materials.leaves, conifers);
-  instances(boxGeometry, materials.furniture, furniture);
-  instances(boxGeometry, materials.clothing, peopleClothing);
-  instances(new THREE.SphereGeometry(1, 6, 4), materials.skin, peopleSkin);
+  addRoofColliders(greenhouseRoofs, "greenhouse roof");
+  instances(new THREE.CylinderGeometry(1, 0.8, 1, 6), materials.trunk, trunks, "tree trunk");
+  instances(new THREE.IcosahedronGeometry(1, 1), materials.leaves, leaves, "tree canopy");
+  instances(new THREE.ConeGeometry(1, 1, 6), materials.leaves, conifers, "tree canopy");
+  instances(boxGeometry, materials.furniture, furniture, "bench");
+  instances(boxGeometry, materials.clothing, peopleClothing, "resident");
+  instances(new THREE.SphereGeometry(1, 6, 4), materials.skin, peopleSkin, "resident");
   instances(
     new THREE.SphereGeometry(1, 6, 3, 0, TAU, 0, Math.PI * 0.52),
     materials.hair,
@@ -1127,12 +1201,12 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
   );
   root.userData.peopleCount = peopleCount;
   root.userData.buildingCount = buildingCount;
-  instances(cylinderGeometry, materials.structure, lamps);
+  instances(cylinderGeometry, materials.structure, lamps, "lamp post");
   instances(new THREE.SphereGeometry(1, 6, 4), materials.lamp, bulbs);
-  instances(boxGeometry, materials.path, bedBorders);
+  instances(boxGeometry, materials.path, bedBorders, "raised bed");
   instances(boxGeometry, materials.soil, beds);
   instances(boxGeometry, materials.crops, crops);
-  instances(cylinderGeometry, materials.structure, railPosts);
+  instances(cylinderGeometry, materials.structure, railPosts, "railing post");
   instances(boxGeometry, materials.cyan, dashes);
 
   orbitRing(208.55, 0.075, -21.75, materials.structure);
@@ -1146,129 +1220,14 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
     guard.position.y = side * 21.75;
   }
 
-  // The ribbed canopy is deliberately open above the promenade. Lightweight
-  // glazing at the shoulders suggests pressure walls while exposing the hub,
-  // the stars, and the opposite inhabited arc from ground level.
-  const ribPoint = (angle: number, t: number) => {
-    const radius = HABITAT_RADIUS - 35 * Math.sin(t);
-    return new THREE.Vector3(
-      radius * Math.cos(angle),
-      -24 * Math.cos(t),
-      radius * Math.sin(angle),
-    );
-  };
-  const canopyPositions: number[] = [];
-  const canopyIndices: number[] = [];
-  for (let rib = 0; rib < 24; rib++) {
-    const angle = (rib / 24) * TAU;
-    for (let segment = 0; segment < 20; segment++) {
-      arches.push({
-        matrix: strutMatrix(
-          ribPoint(angle, (segment / 20) * Math.PI),
-          ribPoint(angle, ((segment + 1) / 20) * Math.PI),
-          0.19,
-        ),
-      });
-    }
-    for (const [start, end] of [
-      [0.05, 0.9],
-      [Math.PI - 0.9, Math.PI - 0.05],
-    ]) {
-      for (let slice = 0; slice < 5; slice++) {
-        const t0 = start + ((end - start) * slice) / 5;
-        const t1 = start + ((end - start) * (slice + 1)) / 5;
-        const base = canopyPositions.length / 3;
-        for (const point of [
-          ribPoint(angle, t0),
-          ribPoint(angle + TAU / 24, t0),
-          ribPoint(angle, t1),
-          ribPoint(angle + TAU / 24, t1),
-        ]) {
-          canopyPositions.push(point.x, point.y, point.z);
-        }
-        canopyIndices.push(
-          base,
-          base + 1,
-          base + 2,
-          base + 1,
-          base + 3,
-          base + 2,
-        );
-      }
-    }
-  }
-  instances(cylinderGeometry, materials.structure, arches);
-  const canopyGeometry = new THREE.BufferGeometry();
-  canopyGeometry.setAttribute(
-    "position",
-    new THREE.Float32BufferAttribute(canopyPositions, 3),
-  );
-  canopyGeometry.setIndex(canopyIndices);
-  mesh(canopyGeometry, materials.roofGlass);
-  orbitRing(175, 0.2, 0, materials.structure);
-  orbitRing(185.25, 0.15, -17, materials.structure);
-  orbitRing(185.25, 0.15, 17, materials.structure);
-
-  // A non-rotating-looking axial hub and six pairs of spoke trusses make the
-  // station's scale legible both from the promenade and from free flight.
-  const hub = mesh(new THREE.CylinderGeometry(11, 11, 47, 20), materials.hub);
-  hub.position.y = 0;
-  mesh(new THREE.CylinderGeometry(14, 14, 12, 20), materials.glass);
-  for (const y of [-24, -7, 7, 24])
-    orbitRing(
-      y === -24 || y === 24 ? 11.5 : 14.3,
-      0.45,
-      y,
-      materials.structure,
-    );
-  const hubCaps: Instance[] = [];
-  for (const side of [-1, 1]) {
-    hubCaps.push({
-      matrix: new THREE.Matrix4().compose(
-        new THREE.Vector3(0, side * 27, 0),
-        new THREE.Quaternion(),
-        new THREE.Vector3(9, 5, 9),
-      ),
-    });
-  }
-  instances(new THREE.IcosahedronGeometry(1, 1), materials.hub, hubCaps);
-  const spokes: Instance[] = [];
-  const spokeBraces: Instance[] = [];
-  for (let spoke = 0; spoke < 6; spoke++) {
-    const angle = (spoke / 6) * TAU + Math.PI / 6;
-    const radial = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
-    for (const side of [-1, 1]) {
-      const a = radial
-        .clone()
-        .multiplyScalar(10)
-        .setY(side * 20);
-      const b = radial
-        .clone()
-        .multiplyScalar(184)
-        .setY(side * 27);
-      spokes.push({ matrix: strutMatrix(a, b, 0.65) });
-      for (let section = 0; section < 9; section++) {
-        const start = 14 + section * 19;
-        const p0 = radial
-          .clone()
-          .multiplyScalar(start)
-          .setY(side * (19 + (start / 184) * 7));
-        const p1 = radial
-          .clone()
-          .multiplyScalar(start + 18)
-          .setY(side * (23 + ((start + 18) / 184) * 7));
-        spokeBraces.push({ matrix: strutMatrix(p0, p1, 0.11) });
-      }
-    }
-  }
-  instances(cylinderGeometry, materials.structure, spokes);
-  instances(cylinderGeometry, materials.trim, spokeBraces);
+  buildHabitatStructure(root, materials);
 
   const trams = buildTramSystem(root, HABITAT_DISTRICTS);
   trams.update(0);
   let disposed = false;
   return {
     root,
+    colliders,
     update(elapsedSeconds, lighting) {
       if (disposed) return;
       trams.update(elapsedSeconds);

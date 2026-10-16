@@ -5,7 +5,7 @@ import {
   TRAM_TRACK_ACROSS,
   TRAM_TRACK_RADIUS,
   TRAMS_PER_DIRECTION,
-} from "./tram-motion";
+} from "./tram-motion.ts";
 import {
   TRAM_LENGTH,
   TRAM_WIDTH,
@@ -14,7 +14,7 @@ import {
   TRAM_PLATFORM_ACROSS,
   TRAM_PLATFORM_WIDTH,
   TRAM_PLATFORM_LENGTH,
-} from "./tram-physics";
+} from "./tram-physics.ts";
 
 type Station = { name: string; angle: number; color: string };
 type Direction = "spinward" | "antispinward";

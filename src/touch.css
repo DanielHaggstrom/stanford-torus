@@ -98,6 +98,34 @@ html.touch-input.landscape-blocked #landscape-prompt {
   color: #eef1e6;
   font: inherit;
 }
+.help-preferences .sound-volume-label {
+  grid-column: 1 / -1;
+  position: relative;
+}
+#sound-volume-value {
+  position: absolute;
+  right: 0;
+  font-variant-numeric: tabular-nums;
+}
+#sound-volume {
+  width: 100%;
+  height: 32px;
+  margin: 0;
+  accent-color: var(--lime);
+}
+.header-right #sound-toggle {
+  font-size: 11px;
+  margin-left: 8px;
+  white-space: nowrap;
+}
+.flight-shortcut {
+  margin: 8px 0 0;
+  font-size: 9px;
+  color: var(--muted);
+}
+html.touch-input .flight-shortcut {
+  display: none;
+}
 
 html.touch-input {
   --touch-left: max(14px, env(safe-area-inset-left));
@@ -176,6 +204,10 @@ html.touch-input .header-right .text-button {
 }
 html.touch-input .header-right .text-button span {
   display: none;
+}
+html.touch-input .header-right #sound-toggle {
+  font-size: 12px;
+  margin-left: 0;
 }
 html.touch-input .orbital-readout,
 html.touch-input .playing .orbital-readout {

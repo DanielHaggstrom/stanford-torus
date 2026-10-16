@@ -7,7 +7,7 @@ probes to see how trajectories curve in a rotating reference frame.
 [Build checks](https://github.com/DanielHaggstrom/stanford-torus/actions) ·
 [MIT license](LICENSE)
 
-**Version 0.5.1** · Keyboard, mouse, or touch · WebGL 2
+**Version 0.6.0** · Keyboard, mouse, or touch · WebGL 2
 
 ## Playing
 
@@ -32,12 +32,13 @@ a lighter rendering budget with touch; choose Full or Balanced there to override
 | Space                                   | Jump, or rise in flight                             |
 | Q                                       | Descend in flight                                   |
 | Shift                                   | Move faster                                         |
-| 1 / 2                                   | Switch to walking / flight                          |
+| V                                       | Toggle walking / flight                             |
 | Hold F, left click, or **Launch probe** | Charge; release to fire                             |
 | C                                       | Clear probes                                        |
 | R                                       | Reset position and clear probes                     |
 | , / . or **Time** selector              | Set simulation speed to 1×, 5×, or 10×              |
 | O                                       | Switch between first person and exterior orbit view |
+| M / **Sound** button                    | Mute or unmute; volume is under **Controls**         |
 | Drag / scroll in orbit view             | Rotate the camera / zoom                            |
 | Esc                                     | Release the mouse and pause exploration             |
 
@@ -60,16 +61,23 @@ line, with six stations and automatic stops. Walk up a station ramp and straight
 onto a cart, then move around or jump off. Carts reach 69 km/h and follow simulation
 speed and time skips. A cart hitting you on the track pushes you to the side.
 
+Footsteps, shots, tram motors, brakes, arrival chimes, and a quiet ventilation hum
+are synthesized in the browser. Sound starts after your first input and stops
+outside the pressure enclosure, while paused, or in orbit view.
+
 ## What's included
 
 - Six districts with procedural buildings, trees, farms, water, and static residents.
 - Two monorail lines, six raised stations, and open carts you can walk into.
 - Walking, jumping, stabilized flight, and a visible first-person body and launcher.
-- Rotating-frame ballistics, trajectory previews, and floor and side-wall collision.
+- Solid buildings, trees, and props; rooftop landings and wall sliding.
+- Rotating-frame ballistics and matching trajectory previews against scenery.
+- Procedural sound, a framed glass enclosure, pressure hull, trusses, and docking hub.
 - Earth, Moon, Sun, eclipses, adjustable time, and an inertial exterior view with an orbit map.
 
 This is a stylized prototype. The deck is a cylindrical ring rather than a full
-toroidal surface. Buildings and residents are scenery without collision. The sky
+toroidal surface. Scenery uses simplified collision bounds; the transparent canopy
+still allows flight through it. The sky
 uses approximate circular orbits and a fixed opening alignment, not the current
 date. There is no multiplayer, saved progress, or gamepad support yet.
 
@@ -93,10 +101,11 @@ texture packs, external fonts, or backend are required. The build is a static si
 See the [orbital model](docs/orbit.md) for assumptions and equations, and the
 [deployment guide](docs/deployment.md) for hosting and rollback.
 The [touch controls guide](docs/mobile.md) covers mobile input and testing.
+See [sound and collision](docs/sound-and-collision.md) for how those systems work.
 
 ## Roadmap
 
-- Add building collision, terrain variation, and a full toroidal deck.
+- Add terrain variation, accessible interiors, and a full toroidal deck.
 - Add scale and spin presets and more trajectory experiments.
 - Improve accessibility, configurable controls, and performance settings.
 - Expand mobile device testing, explore gamepads, and eventually shared exploration.

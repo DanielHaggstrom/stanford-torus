@@ -44,6 +44,7 @@
             <option value="10">10×</option>
           </select>
         </div>
+        <button id="sound-toggle" class="text-button" aria-label="Mute sound (M)" aria-pressed="true" title="Toggle sound (M)">Sound on</button>
         <button id="help-button" class="text-button" aria-label="Show controls">
           ? <span>Controls</span>
         </button>
@@ -60,9 +61,10 @@
         ><span class="view-shortcut"><kbd>O</kbd> Orbit view</span>
       </div>
       <div class="mode-switch" role="group" aria-label="Movement mode">
-        <button id="walk-button" class="selected">Walk <kbd>1</kbd></button
-        ><button id="fly-button">Fly <kbd>2</kbd></button>
+        <button id="walk-button" class="selected">Walk</button
+        ><button id="fly-button">Fly</button>
       </div>
+      <p class="flight-shortcut"><kbd>V</kbd> Toggle flight</p>
       <p id="mode-description">Follow the promenade. Space to jump.</p>
       <p id="tram-status" class="tram-status" hidden></p>
       <div class="divider"></div>
@@ -156,6 +158,7 @@
     <div id="key-guide" class="key-guide" hidden>
       <span><kbd>W A S D</kbd> move</span
       ><span><kbd>SPACE</kbd> jump / rise</span><span><kbd>F</kbd> charge</span
+      ><span><kbd>V</kbd> flight</span
       ><span><kbd>C</kbd> clear</span><span><kbd>, .</kbd> time</span
       ><span><kbd>O</kbd> orbit view</span><span><kbd>R</kbd> reset</span
       ><span><kbd>ESC</kbd> release mouse</span>
@@ -212,6 +215,9 @@
             <option value="balanced">Balanced</option>
           </select>
         </label>
+        <label for="sound-volume" class="sound-volume-label">Volume <output id="sound-volume-value" for="sound-volume">35%</output>
+          <input id="sound-volume" type="range" min="0" max="100" step="5" value="35" />
+        </label>
       </div>
       <dl class="touch-help">
         <dt>Move / look</dt>
@@ -236,8 +242,8 @@
         <dd>Jump, or rise in flight</dd>
         <dt>Shift / Q</dt>
         <dd>Move faster / descend in flight</dd>
-        <dt>1 / 2</dt>
-        <dd>Walking / powered flight</dd>
+        <dt>V</dt>
+        <dd>Toggle walking / powered flight</dd>
         <dt>Hold click / F / launch button</dt>
         <dd>Tap to fire; hold for 1.2 seconds for full power</dd>
         <dt>C</dt>
@@ -248,6 +254,8 @@
         <dd>Reset position / release mouse</dd>
         <dt>O</dt>
         <dd>Toggle inertial orbit view; drag to inspect, scroll to zoom</dd>
+        <dt>M / Sound button</dt>
+        <dd>Mute or unmute. Set volume above.</dd>
         <dt>Trams</dt>
         <dd>
           Walk up a station ramp and onto an open cart. Move around or jump off.
@@ -265,13 +273,14 @@
         Gold trails show fired probes. Both use the habitat’s rotating frame.
       </p>
       <p class="help-small">
-        A compact, stylized Stanford torus. Buildings are scenery; the floor and
-        side rails provide collision. Flight uses a powered, stabilized
+        A compact, stylized Stanford torus. Buildings, trees, and solid props
+        block movement and probes. Flight uses a powered, stabilized
         thruster. The sky follows an approximate circular Earth orbit at 2,000
         km, inclined by 51.6°. Earth, Moon and Sun directions, apparent sizes
         and eclipses share the simulation clock. Charging uses real seconds. Esc
         pauses exploration; switching away from this browser tab pauses the
-        simulation.
+        simulation. Sound begins after your first input and cuts out beyond the
+        pressure enclosure. The transparent canopy permits flight through it.
       </p>
     </dialog>
     <div id="notice" role="status" aria-live="polite"></div>
