@@ -64,8 +64,7 @@ sudo mv -Tf /srv/stanford-torus/.current-next /srv/stanford-torus/current
 The temporary symlink must not already exist. Resolve and check the new target
 before publishing. Asset requests already in flight can reference the preceding
 build's hashed filenames, so retain the previous release for rollback and reload
-open browser tabs after an update. A future release can introduce shared asset
-retention if seamless updates to long-running sessions become necessary.
+open browser tabs after an update.
 
 ## Caddy
 
@@ -126,5 +125,4 @@ configuration change.
 
 The game has no server-side database or persistent user data. Rebuild assets from
 the tagged commit and lockfile; preserve the private Caddy configuration and
-server runbook in the host's protected configuration backups. Automatic deployment
-and scheduled backup changes are separate future work.
+server runbook in the host's protected configuration backups.

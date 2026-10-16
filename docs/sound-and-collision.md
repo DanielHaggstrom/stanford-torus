@@ -38,8 +38,3 @@ The preview uses the current launch position and velocity on every rendered
 frame. Unchanged shots reuse a cached prediction; movement, aiming, and charging
 update it immediately. Preview markers use a consistent transparent draw order
 without writing depth, so glazing and contact surfaces do not cause flicker.
-
-Tests cover enclosure boundaries, audio gating and event timing, wall sliding,
-roof support, fast contacts, and agreement between previews and fired probes.
-WebAudio graph tests use a fake audio device. Listening quality and mobile audio
-behavior still need checks on physical hardware.

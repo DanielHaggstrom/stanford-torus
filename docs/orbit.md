@@ -2,7 +2,7 @@
 
 TORUS uses a small analytic model to keep the view of Earth, the Moon, and the Sun consistent with a spinning habitat. It evaluates positions directly from simulation time; there is no orbital physics engine, ephemeris download, or network request.
 
-The source of truth is [`src/orbit.ts`](../src/orbit.ts). [`src/sky.ts`](../src/sky.ts) renders that state. [`src/orbit-map.ts`](../src/orbit-map.ts) displays orbital phase, and [`src/time-skip.ts`](../src/time-skip.ts) selects its next future occurrence. The orbital and time-skip tests check distances, periods, angular size, habitat spin, lunar parallax, eclipses, continent placement, phase wrapping, and forward-only clock changes.
+[`src/orbit.ts`](../src/orbit.ts) calculates positions, [`src/sky.ts`](../src/sky.ts) renders them, and [`src/time-skip.ts`](../src/time-skip.ts) selects the next occurrence of a phase chosen on the orbit map.
 
 ## Scenario and reference values
 

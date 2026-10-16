@@ -72,6 +72,7 @@ export function createFlightAssist(
   const personalUp = new Vector3();
   let frame: FlightFrame = "habitat";
   let habitatWeight = 1;
+  let orientationTime = simTime;
 
   function rotateOrientation(rotation: Quaternion): void {
     orientation.premultiply(rotation).normalize();
@@ -79,6 +80,7 @@ export function createFlightAssist(
   }
 
   function reset(position: Vec3, direction: Vec3, up: Vec3, time: number): void {
+    orientationTime = time;
     const forward = normalized(direction, FORWARD);
     personalUp.copy(normalized(up, AXIS));
     // A malformed or exactly vertical initial pose still needs a stable horizon.
@@ -100,7 +102,10 @@ export function createFlightAssist(
     get frame() { return frame; },
     get habitatWeight() { return habitatWeight; },
     basis(time) {
-      const inverseSpin = new Quaternion().setFromAxisAngle(AXIS, -ANGULAR_SPEED * time);
+      // Physics advances at fixed ticks; the camera can sample between them.
+      const inverseSpin = new Quaternion().setFromAxisAngle(
+        AXIS, ANGULAR_SPEED * (habitatWeight * (time - orientationTime) - time),
+      );
       const direction = FORWARD.clone().applyQuaternion(orientation).applyQuaternion(inverseSpin).normalize();
       const up = personalUp.clone().applyQuaternion(inverseSpin).normalize();
       const right = direction.clone().cross(up).normalize();
@@ -131,6 +136,7 @@ export function createFlightAssist(
       habitatWeight += Math.max(-change, Math.min(change, targetWeight - habitatWeight));
       const averageWeight = (previousWeight + habitatWeight) / 2;
       rotateOrientation(new Quaternion().setFromAxisAngle(AXIS, ANGULAR_SPEED * simulationStep * averageWeight));
+      orientationTime = endSimTime;
 
       // The floor normal is useful only near the ring. In space it never pulls
       // the horizon toward the axis, including during a close hub inspection.
@@ -146,7 +152,8 @@ export function createFlightAssist(
     rebaseTime(from, to) {
       const difference = to - from;
       if (!Number.isFinite(difference)) return;
-      rotateOrientation(new Quaternion().setFromAxisAngle(AXIS, ANGULAR_SPEED * difference * habitatWeight));
+      rotateOrientation(new Quaternion().setFromAxisAngle(AXIS, ANGULAR_SPEED * (to - orientationTime) * habitatWeight));
+      orientationTime = to;
     },
   };
 }
@@ -175,8 +182,27 @@ export function advanceAssistedFlight(
   if (correction.lengthSq() > maximumChange ** 2) correction.setLength(maximumChange);
   inertialVelocity.add(correction);
 
-  const residual = inertialVelocity.addScaledVector(surfaceVelocity, -matched);
-  const angle = -ANGULAR_SPEED * (1 - matched) * dtSim;
+  const rotatingVelocity = inertialVelocity.sub(surfaceVelocity);
+  return driftAssistedFlight({ position: state.position, velocity: rotatingVelocity }, dtSim, matched);
+}
+
+/** Continue the current velocity in the assisted frame, without applying thrust. */
+export function driftAssistedFlight(
+  state: MotionState,
+  dtSim: number,
+  habitatWeight: number,
+): MotionState {
+  if (!Number.isFinite(dtSim) || dtSim <= 0) {
+    return { position: plain(state.position), velocity: plain(state.velocity) };
+  }
+  const space = 1 - weight(habitatWeight);
+  const surface = rotationVelocity(state.position);
+  const residual = {
+    x: state.velocity.x + space * surface.x,
+    y: state.velocity.y,
+    z: state.velocity.z + space * surface.z,
+  };
+  const angle = -ANGULAR_SPEED * space * dtSim;
   const position = rotateY({
     x: state.position.x + residual.x * dtSim,
     y: state.position.y + residual.y * dtSim,
@@ -187,9 +213,9 @@ export function advanceAssistedFlight(
   return {
     position,
     velocity: {
-      x: endResidual.x - (1 - matched) * endSurface.x,
+      x: endResidual.x - space * endSurface.x,
       y: endResidual.y,
-      z: endResidual.z - (1 - matched) * endSurface.z,
+      z: endResidual.z - space * endSurface.z,
     },
   };
 }

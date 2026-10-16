@@ -19,7 +19,7 @@ import { isInsideHabitat } from "./habitat-volume";
 import { resolvePlayerDeck, isOverDeck } from "./player-boundaries";
 import { AXIS_SUNLIGHT_THRESHOLD } from "./axis-tracking";
 import { updateMotionRamp, walkSpeed, flightSpeed } from "./movement";
-import { createFlightAssist, advanceAssistedFlight } from "./flight-assist";
+import { createFlightAssist, advanceAssistedFlight, driftAssistedFlight } from "./flight-assist";
 import { createJumpAssist } from "./jump-assist";
 import { loadPreferences, savePreferences } from "./preferences";
 import { constrainToExplorationSphere, firstExplorationExit, getBoundaryClearance } from "./exploration-boundary";
@@ -417,11 +417,21 @@ function basis(simTime = elapsed) {
   pitch = Math.asin(THREE.MathUtils.clamp(direction.dot(up), -1, 1));
 }
 
-function updateCamera() {
+function updateCamera(pose = playerPose()) {
   basis();
   camera.up.copy(up);
-  camera.position.copy(player.position).addScaledVector(up, eyeHeight);
+  camera.position.copy(pose.position).addScaledVector(up, eyeHeight);
   camera.lookAt(position.copy(camera.position).add(direction));
+}
+
+function playerPose(): MotionState {
+  // Camera, muzzle and inherited velocity must share the probes' render clock.
+  if (!flight && grounded) return player;
+  return constrainToExplorationSphere(
+    flight
+      ? driftAssistedFlight(player, fixedAccumulator, flightAssist.habitatWeight)
+      : stepFreeFlight(player, fixedAccumulator),
+  ).state;
 }
 
 function explorationActive() {
@@ -554,6 +564,7 @@ function stepTimeRate(delta: number) {
 }
 
 function resetPlayer() {
+  fixedAccumulator = 0;
   audio.reset();
   touch.reset();
   player = {
@@ -859,7 +870,8 @@ function skipToOrbitPhase(targetPhase: number) {
 }
 
 function currentShot(speed = effectiveLaunchSpeed()): MotionState {
-  updateCamera();
+  const pose = playerPose();
+  updateCamera(pose);
   const origin = camera.position
     .clone()
     .addScaledVector(direction, 0.65)
@@ -878,10 +890,10 @@ function currentShot(speed = effectiveLaunchSpeed()): MotionState {
   const initialVelocity = direction
     .clone()
     .multiplyScalar(speed)
-    .add(new THREE.Vector3().copy(player.velocity));
+    .add(new THREE.Vector3().copy(pose.velocity));
   // A space-stabilized launcher does not inherit the ring's rotation at its muzzle offset.
   initialVelocity.addScaledVector(
-    new THREE.Vector3().copy(rotationVelocity(origin.clone().sub(player.position))),
+    new THREE.Vector3().copy(rotationVelocity(origin.clone().sub(pose.position))),
     -(1 - flightAssist.habitatWeight),
   );
   return {
@@ -1409,7 +1421,6 @@ window.addEventListener("blur", () => {
 document.addEventListener("visibilitychange", () => {
   clearNavigationInputs();
   cancelCharge();
-  fixedAccumulator = 0;
   previous = performance.now();
   if (touch.enabled && document.hidden) pauseExploration();
   updateAudio();
@@ -1521,8 +1532,6 @@ function frame(now: number) {
       simulatePlayer(STEP, elapsed - fixedAccumulator);
       fixedAccumulator -= STEP;
     }
-  } else {
-    fixedAccumulator = 0;
   }
   if (!help.open) updateKeyboardCamera(dt);
   if (view === "explore") updateCamera();

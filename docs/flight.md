@@ -37,6 +37,10 @@ return to 1×. Movement's two-second acceleration ramp and the one-second frame
 blend still use real time. Jump buffering and grace after leaving an edge each
 last 0.12 real seconds.
 
+Flight physics runs at 120 Hz. The camera and launcher sample between ticks at
+display time, sharing the probes' clock and inherited velocity. Pausing freezes
+that sampled pose.
+
 A virtual sphere of radius 750 m surrounds the habitat center. It becomes faintly
 visible near the limit. Players slide along its inside, with room reserved for
 their body; probes disappear on their first outward crossing. The sphere is a
