@@ -142,10 +142,9 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
   const root = new THREE.Group();
   root.name = "Procedural Stanford torus";
   scene.add(root);
-  const oldBackground = scene.background;
   const oldFog = scene.fog;
-  const background = new THREE.Color("#07131e");
-  scene.background = background;
+  // The sky is rendered first in a separate scene. An opaque background here
+  // would clear it again even when renderer.autoClear is disabled.
   scene.fog = new THREE.FogExp2("#102735", 0.00032);
   const random = randomGenerator(1984);
 
@@ -1292,7 +1291,6 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
       geometries.forEach((geometry) => geometry.dispose());
       ownedMaterials.forEach((material) => material.dispose());
       root.removeFromParent();
-      if (scene.background === background) scene.background = oldBackground;
       scene.fog = oldFog;
     },
   };

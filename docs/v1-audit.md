@@ -1,7 +1,12 @@
 # v1.0.0 readiness audit
 
-This pass prepares **v1.0.0-rc.1**. The comparison baseline is v0.10.0
+This pass prepares **v1.0.0-rc.2**. The comparison baseline is v0.10.0
 (`3b2935e`). Performance measurements are in [performance.md](performance.md).
+
+RC2 fixes a sky-compositing regression introduced in RC1: the habitat builder
+set an opaque background that cleared the previously drawn sky. The builder now
+preserves the caller's background, with a regression covering creation and
+disposal. Browser checks explicitly verify Earth, Moon and Sun visibility.
 
 ## Geometry
 

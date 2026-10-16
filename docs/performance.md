@@ -1,5 +1,9 @@
 # Performance
 
+The recorded comparison below is from RC1. RC2 fixes its sky-compositing
+regression (the habitat background covered the sky); the figures remain a
+historical measurement of that build, rather than a new RC2 benchmark.
+
 Torus generates its scenery, geography, sound and interface locally. Three.js is
 the only runtime dependency; the production site has no downloaded models,
 image textures, external fonts or application server. That keeps the download

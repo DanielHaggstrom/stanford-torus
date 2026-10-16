@@ -7,7 +7,7 @@ into space, and launch probes to see trajectories in different reference frames.
 [Build checks](https://github.com/DanielHaggstrom/stanford-torus/actions) ·
 [MIT license](LICENSE)
 
-**v1.0.0-rc.1** · Keyboard, mouse, or touch · WebGL 2
+**v1.0.0-rc.2** · Keyboard, mouse, or touch · WebGL 2
 
 ## Play
 
