@@ -91,7 +91,7 @@ export function buildElevators(root: THREE.Group, addCollider: ColliderRegistrat
     tubes.push(tube);
     addCollider(cylinder, tube.matrix, "elevator pressure shaft");
     for (let band = 0; band <= 14; band++) bands.push({ matrix: new THREE.Matrix4().compose(
-      deck.clone().lerp(hub, band / 14), rotation, new THREE.Vector3(1.38, 1.38, 1.38),
+      deck.clone().lerp(hub, band / 14), rotation, new THREE.Vector3(1.34, 1.34, 1.34),
     ) });
 
     const terminal = box(index, -17, 2.4, 4.2, 4.8, 4);
@@ -118,12 +118,12 @@ export function buildElevators(root: THREE.Group, addCollider: ColliderRegistrat
     trims.push(box(index, -17, 4.84, 4.45, 0.22, 4.25));
     trims.push(box(index, -14.97, 2.88, 2.05, 0.15, 0.25));
     for (const side of [-1, 1]) trims.push(box(index, -14.97, 1.48, 0.13, 2.95, 0.25, side * 0.99));
-    lamps.push(box(index, -14.8, 4.08, 1.6, 0.16, 0.12));
+    lamps.push(box(index, -14.96, 4.08, 1.6, 0.16, 0.12));
     // Opposed arrows provide a legible, texture-free elevator symbol.
     for (const side of [-1, 1]) {
-      signs.push(box(index, -14.82, 3.56, 0.12, 0.6, 0.12, side * 0.3));
+      signs.push(box(index, -14.96, 3.56, 0.12, 0.6, 0.12, side * 0.3));
       for (const branch of [-1, 1]) {
-        signs.push(box(index, -14.82, 3.56 + side * 0.19, 0.1, 0.11, 0.12, side * 0.3 + branch * 0.11));
+        signs.push(box(index, -14.96, 3.56 + side * 0.19, 0.1, 0.11, 0.12, side * 0.3 + branch * 0.11));
       }
     }
   }

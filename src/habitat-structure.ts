@@ -13,6 +13,7 @@ type StructureMaterials = {
 };
 type Part = { matrix: THREE.Matrix4; color?: THREE.ColorRepresentation };
 const TAU = Math.PI * 2;
+const ARCH_SEGMENTS = 24;
 const Y = new THREE.Vector3(0, 1, 0);
 
 /** Shared, low-poly structural parts; the canopy remains transparent from inside. */
@@ -55,16 +56,25 @@ export function buildHabitatStructure(
       size,
     );
   const ring = (radius: number, width: number, across: number, material: THREE.Material) => {
-    const object = mesh(new THREE.TorusGeometry(radius, width, 5, 128), material);
+    const object = mesh(new THREE.TorusGeometry(radius, width, 6, 128), material);
     object.rotation.x = Math.PI / 2;
     object.position.y = across;
     return object;
   };
   const archPoint = (angle: number, t: number, hull = false) => {
-    const radius = FLOOR_RADIUS + (hull ? ENCLOSURE_HULL_DEPTH : -ENCLOSURE_HEIGHT) * Math.sin(t);
+    // Tubes, ribs and lights mount to the actual polygonal glazing, rather
+    // than to an ideal ellipse that can sit clear of the rendered panels.
+    const step = THREE.MathUtils.clamp(t / Math.PI * ARCH_SEGMENTS, 0, ARCH_SEGMENTS);
+    const lower = Math.min(Math.floor(step), ARCH_SEGMENTS - 1);
+    const blend = step - lower;
+    const a = lower / ARCH_SEGMENTS * Math.PI;
+    const b = (lower + 1) / ARCH_SEGMENTS * Math.PI;
+    const sine = THREE.MathUtils.lerp(Math.sin(a), Math.sin(b), blend);
+    const cosine = THREE.MathUtils.lerp(Math.cos(a), Math.cos(b), blend);
+    const radius = FLOOR_RADIUS + (hull ? ENCLOSURE_HULL_DEPTH : -ENCLOSURE_HEIGHT) * sine;
     return new THREE.Vector3(
       radius * Math.cos(angle),
-      -ENCLOSURE_HALF_WIDTH * Math.cos(t),
+      -ENCLOSURE_HALF_WIDTH * cosine,
       radius * Math.sin(angle),
     );
   };
@@ -73,7 +83,7 @@ export function buildHabitatStructure(
     const colors: number[] = [];
     const indices: number[] = [];
     const sectors = 96;
-    const slices = hull ? 12 : 24;
+    const slices = ARCH_SEGMENTS;
     const color = new THREE.Color();
     // Duplicate vertices at each bay so subtle panel colour changes stay crisp.
     for (let bay = 0; bay < sectors; bay++) {
@@ -118,17 +128,17 @@ export function buildHabitatStructure(
   for (let rib = 0; rib < 48; rib++) {
     const angle = rib / 48 * TAU;
     const main = rib % 2 === 0;
-    for (let slice = 0; slice < 20; slice++) {
-      const a = archPoint(angle, slice / 20 * Math.PI);
-      const b = archPoint(angle, (slice + 1) / 20 * Math.PI);
+    for (let slice = 0; slice < ARCH_SEGMENTS; slice++) {
+      const a = archPoint(angle, slice / ARCH_SEGMENTS * Math.PI);
+      const b = archPoint(angle, (slice + 1) / ARCH_SEGMENTS * Math.PI);
       (main ? frames : secondary).push({ matrix: strut(a, b, main ? 0.17 : 0.075) });
       if (main && slice % 4 === 0)
         nodes.push({ matrix: box(a, new THREE.Vector3(0.48, 0.32, 0.48), angle) });
       if (main)
         secondary.push({
           matrix: strut(
-            archPoint(angle, slice / 20 * Math.PI, true),
-            archPoint(angle, (slice + 1) / 20 * Math.PI, true),
+            archPoint(angle, slice / ARCH_SEGMENTS * Math.PI, true),
+            archPoint(angle, (slice + 1) / ARCH_SEGMENTS * Math.PI, true),
             0.14,
           ),
         });
@@ -157,7 +167,8 @@ export function buildHabitatStructure(
       serviceLines.push({ matrix: strut(archPoint(a, t), archPoint(b, t), 0.16) });
       if (section % 4 === 0) {
         nodes.push({ matrix: box(archPoint(a, t), new THREE.Vector3(0.7, 0.6, 0.7), a) });
-        const light = archPoint(a, side < 0 ? 0.11 : Math.PI - 0.11);
+        const light = archPoint(a, t);
+        light.y -= side * 0.35;
         guideLights.push({ matrix: box(light, new THREE.Vector3(0.45, 0.12, 0.45), a) });
       }
     }
@@ -175,7 +186,7 @@ export function buildHabitatStructure(
       if (side < 0 && spoke % 2 === 0) continue;
       const point = (section: number, corner = -1) => {
         const f = section / 10;
-        const value = radial.clone().multiplyScalar(12 + f * (FLOOR_RADIUS - 12));
+        const value = radial.clone().multiplyScalar(10.5 + f * (FLOOR_RADIUS - 10.5));
         value.y = side * (20 + f * (ENCLOSURE_HALF_WIDTH - 20));
         if (corner === 0) value.addScaledVector(tangent, -1.35);
         if (corner === 1) value.addScaledVector(tangent, 1.35);
@@ -192,6 +203,7 @@ export function buildHabitatStructure(
           secondary.push({ matrix: strut(point(section, a), point(section + 1, b), 0.085) });
           secondary.push({ matrix: strut(point(section, corner), point(section, next), 0.085) });
         }
+        secondary.push({ matrix: strut(point(10, corner), point(10, (corner + 1) % 3), 0.085) });
         nodes.push({ matrix: box(point(10, corner), new THREE.Vector3(1.1, 0.8, 1.1), angle) });
       }
     }
@@ -208,10 +220,10 @@ export function buildHabitatStructure(
   // These bearing collars and the spoke mounts belong to the rotating ring.
   // The service spine inside them has a separate attitude and panel drive.
   for (const y of [-24, 24]) {
-    ring(11.8, 0.65, y, materials.structure);
-    ring(11.25, 0.14, y - Math.sign(y) * 0.85, materials.cyan);
+    ring(11.8, 0.65, y, materials.structure).name = "Hub bearing collar";
+    ring(11.25, 0.14, y - Math.sign(y) * 0.85, materials.cyan).name = "Hub bearing status ring";
   }
-  const transfer = mesh(new THREE.CylinderGeometry(11.2, 11.2, 5, 24), materials.hub);
+  const transfer = mesh(new THREE.CylinderGeometry(11.2, 11.2, 3.1, 24), materials.hub);
   transfer.name = "Rotating elevator transfer drum";
   transfer.position.y = -24;
   const axis = buildAxisStructure(root, materials);

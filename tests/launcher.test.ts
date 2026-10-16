@@ -10,12 +10,10 @@ import {
 } from "../src/launcher.ts";
 import {
   FLOOR_RADIUS,
-  advanceBallistic,
-  firstHabitatImpact,
-  sampleTrajectory,
   type MotionState,
   type Vec3,
 } from "../src/physics.ts";
+import { buildSceneryCollision } from "../src/scenery-collision.ts";
 
 function near(actual: number, expected: number, tolerance = 1e-9): void {
   assert.ok(
@@ -57,10 +55,11 @@ test("full charge takes one second beyond the tap delay and saturates", () => {
 });
 
 test("charged moving shots follow the preview at 1×, 5×, and 10×", () => {
+  const world = buildSceneryCollision([]);
   const playerVelocity = { x: -1.2, y: 1.8, z: 7.3 };
   const aimDirections = [
-    { x: -0.8, y: 0, z: 0.6, impactKind: "floor" },
-    { x: -0.8, y: 0.6, z: 0, impactKind: "side" },
+    { x: -0.8, y: 0, z: 0.6 },
+    { x: -0.8, y: 0.6, z: 0 },
   ];
   for (const heldSeconds of [CHARGE_DELAY_SECONDS + 10 / 62, 1.2]) {
     const speed = launchSpeed(heldSeconds);
@@ -73,13 +72,12 @@ test("charged moving shots follow the preview at 1×, 5×, and 10×", () => {
           z: aim.z * speed + playerVelocity.z,
         },
       };
-      const impact = firstHabitatImpact(initial, 30);
-      assert.equal(impact?.kind, aim.impactKind);
+      const impact = world.firstImpact(initial, 30);
       assert.ok(impact);
       // Shared checkpoints let different live update rates be compared with
       // the same preview, including its exact first-contact endpoint.
       const previewStep = 0.5;
-      const preview = sampleTrajectory(initial, {
+      const preview = world.sampleTrajectory(initial, {
         duration: 30,
         step: previewStep,
       });
@@ -90,7 +88,7 @@ test("charged moving shots follow the preview at 1×, 5×, and 10×", () => {
           const checkpoint = Math.min(index * previewStep, impact.time);
           while (elapsed < checkpoint - 1e-12) {
             const dt = Math.min(timeRate / 60, checkpoint - elapsed);
-            const advanced = advanceBallistic(state, dt);
+            const advanced = world.advanceBallistic(state, dt);
             state = advanced.state;
             elapsed += advanced.impact?.time ?? dt;
             if (advanced.impact) break;

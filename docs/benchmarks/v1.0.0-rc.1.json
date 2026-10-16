@@ -1,0 +1,572 @@
+{
+  "schemaVersion": 1,
+  "applicationVersion": "1.0.0-rc.1",
+  "date": "2026-10-16",
+  "notes": [
+    "Baseline source is immutable v0.10.0. Candidate measurements used the release-candidate working tree before final documentation and the initial-frame dt-clamp fix.",
+    "Standalone baseline CPU construction timings overlapped other machine work; use the alternating paired sky comparison for the startup improvement claim.",
+    "Browser baseline was repeated after the initial display-refresh cadence changed. Only those repeated baseline runs are included.",
+    "Manual browser workloads are comparative smoke runs, not deterministic replay. Near-refresh-limited FPS is not a GPU-time measurement.",
+    "The touch case uses the desktop GPU at a phone-sized viewport, not physical phone hardware."
+  ],
+  "cpu": {
+    "environment": {
+      "node": "v22.22.2",
+      "platform": "win32",
+      "osRelease": "10.0.26300",
+      "architecture": "x64",
+      "cpuModel": "AMD Ryzen 9 5900HX with Radeon Graphics",
+      "logicalCpus": 16,
+      "systemMemoryGiB": 31.418922,
+      "threeRevision": "186",
+      "forcedGcBetweenConstructionSamples": true
+    },
+    "methodology": {
+      "sampleCount": 31,
+      "clocks": "performance.now; milliseconds per operation",
+      "graphics": "No renderer: CPU only, no GPU upload or shader compilation",
+      "scene": "Habitat, sky and first-person avatar",
+      "collisionWorkload": "72 fixed floor positions across promenade, side paths and occupied outer lots; 120 Hz movement steps",
+      "trajectoryWorkload": "12 inward shots at 28/90 m/s around the ring plus one unobstructed exterior shot; max30 s, sample0.04 s",
+      "inventory": "Pre-culling scene counts; buffer estimate excludes driver overhead, shader programs, render targets and shadow maps"
+    },
+    "baseline": {
+      "applicationVersion": "0.10.0",
+      "revisionBase": "3b2935e710175edf57a22738f8bc3bac2adda3bb",
+      "workingTreeModified": null,
+      "recordedAt": "2026-10-16T17:11:35.476Z",
+      "inventory": {
+        "renderableObjects": 217,
+        "instancedObjects": 64,
+        "instances": 7628,
+        "trianglesBeforeCulling": 364218,
+        "pointsBeforeCulling": 1900,
+        "shadowCasters": 45,
+        "uniqueGeometries": 118,
+        "uniqueMaterials": 73,
+        "estimatedGeometryAndInstanceBufferBytes": 9042736,
+        "colliderCount": 2850
+      },
+      "timings": {
+        "sceneConstruction": {
+          "medianMs": 1180.8059,
+          "p95Ms": 1473.0011,
+          "samples": 11,
+          "warmupOperations": 2
+        },
+        "habitatConstruction": {
+          "medianMs": 62.1785,
+          "p95Ms": 114.9323,
+          "samples": 11,
+          "warmupOperations": 2
+        },
+        "skyConstruction": {
+          "medianMs": 1111.7678,
+          "p95Ms": 1295.1408,
+          "samples": 11,
+          "warmupOperations": 2
+        },
+        "avatarConstruction": {
+          "medianMs": 1.3273,
+          "p95Ms": 2.1585,
+          "samples": 11,
+          "warmupOperations": 2
+        },
+        "spatialIndexConstruction": {
+          "medianMs": 1.6479,
+          "p95Ms": 5.8318,
+          "samples": 31,
+          "warmupOperations": 3,
+          "operationsPerSample": 1
+        },
+        "playerCollisionQuery": {
+          "medianMs": 0.035765,
+          "p95Ms": 0.060789,
+          "samples": 31,
+          "warmupOperations": 1000,
+          "operationsPerSample": 72
+        },
+        "trajectoryFirstImpact": {
+          "medianMs": 0.147854,
+          "p95Ms": 0.212123,
+          "samples": 31,
+          "warmupOperations": 1000,
+          "operationsPerSample": 13
+        },
+        "trajectoryPrediction": {
+          "medianMs": 0.153131,
+          "p95Ms": 0.211377,
+          "samples": 31,
+          "warmupOperations": 1000,
+          "operationsPerSample": 13
+        },
+        "orbitalAndAxisState": {
+          "medianMs": 0.004006,
+          "p95Ms": 0.010832,
+          "samples": 31,
+          "warmupOperations": 1280,
+          "operationsPerSample": 256
+        },
+        "habitatAndSkyUpdate": {
+          "medianMs": 0.025905,
+          "p95Ms": 0.036545,
+          "samples": 31,
+          "warmupOperations": 1000,
+          "operationsPerSample": 60
+        },
+        "sceneGraphUpdate": {
+          "medianMs": 0.033567,
+          "p95Ms": 0.046462,
+          "samples": 31,
+          "warmupOperations": 1000,
+          "operationsPerSample": 60
+        }
+      }
+    },
+    "candidate": {
+      "applicationVersion": "1.0.0-rc.1",
+      "revisionBase": "3b2935e710175edf57a22738f8bc3bac2adda3bb",
+      "workingTreeModified": true,
+      "recordedAt": "2026-10-16T17:15:59.004Z",
+      "inventory": {
+        "renderableObjects": 202,
+        "instancedObjects": 64,
+        "instances": 7979,
+        "trianglesBeforeCulling": 373114,
+        "pointsBeforeCulling": 1900,
+        "shadowCasters": 45,
+        "uniqueGeometries": 103,
+        "uniqueMaterials": 73,
+        "estimatedGeometryAndInstanceBufferBytes": 9267616,
+        "colliderCount": 2854
+      },
+      "timings": {
+        "sceneConstruction": {
+          "medianMs": 150.6568,
+          "p95Ms": 190.6432,
+          "samples": 11,
+          "warmupOperations": 2
+        },
+        "habitatConstruction": {
+          "medianMs": 37.0025,
+          "p95Ms": 67.4203,
+          "samples": 11,
+          "warmupOperations": 2
+        },
+        "skyConstruction": {
+          "medianMs": 102.6517,
+          "p95Ms": 133.2396,
+          "samples": 11,
+          "warmupOperations": 2
+        },
+        "avatarConstruction": {
+          "medianMs": 0.7966,
+          "p95Ms": 1.5487,
+          "samples": 11,
+          "warmupOperations": 2
+        },
+        "spatialIndexConstruction": {
+          "medianMs": 0.8793,
+          "p95Ms": 2.8395,
+          "samples": 31,
+          "warmupOperations": 3,
+          "operationsPerSample": 1
+        },
+        "playerCollisionQuery": {
+          "medianMs": 0.027724,
+          "p95Ms": 0.04304,
+          "samples": 31,
+          "warmupOperations": 1000,
+          "operationsPerSample": 72
+        },
+        "trajectoryFirstImpact": {
+          "medianMs": 0.105923,
+          "p95Ms": 0.127438,
+          "samples": 31,
+          "warmupOperations": 1000,
+          "operationsPerSample": 13
+        },
+        "trajectoryPrediction": {
+          "medianMs": 0.107815,
+          "p95Ms": 0.143631,
+          "samples": 31,
+          "warmupOperations": 1000,
+          "operationsPerSample": 13
+        },
+        "orbitalAndAxisState": {
+          "medianMs": 0.003029,
+          "p95Ms": 0.007568,
+          "samples": 31,
+          "warmupOperations": 1280,
+          "operationsPerSample": 256
+        },
+        "habitatAndSkyUpdate": {
+          "medianMs": 0.015353,
+          "p95Ms": 0.026373,
+          "samples": 31,
+          "warmupOperations": 1000,
+          "operationsPerSample": 60
+        },
+        "sceneGraphUpdate": {
+          "medianMs": 0.022537,
+          "p95Ms": 0.03498,
+          "samples": 31,
+          "warmupOperations": 1000,
+          "operationsPerSample": 60
+        }
+      }
+    },
+    "pairedSkyComparison": {
+      "method": "11 alternating-order pairs in one process, same Three.js version and forced-GC setting",
+      "beforeRevision": "3b2935e710175edf57a22738f8bc3bac2adda3bb",
+      "before": {
+        "medianMs": 628.0361,
+        "p95Ms": 677.9981,
+        "minMs": 605.8686,
+        "samples": 11
+      },
+      "after": {
+        "medianMs": 103.3854,
+        "p95Ms": 113.7093,
+        "minMs": 101.8847,
+        "samples": 11
+      },
+      "medianSpeedup": 6.074708
+    },
+    "staticMatrixUpperBound": {
+      "description": "Upper bound only: all mesh local matrices frozen, including animated sky/avatar meshes; not safe as a blanket production change",
+      "frozenMeshes": 183,
+      "timings": {
+        "medianMs": 0.015458,
+        "p95Ms": 0.022232,
+        "minMs": 0.014792,
+        "samples": 31,
+        "operationsPerSample": 60,
+        "warmupOperations": 1000
+      }
+    }
+  },
+  "browser": {
+    "environment": {
+      "browser": "Chromium 155",
+      "operatingSystem": "Windows",
+      "webglVersion": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
+      "renderer": "ANGLE (AMD, AMD Radeon(TM) Graphics (0x00001638) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "vendor": "Google Inc. (AMD)"
+    },
+    "methodology": {
+      "warmupSeconds": 2,
+      "targetRecordingSeconds": 10,
+      "simulationRate": 1,
+      "cpuSubmission": "Main-thread work through render submission; asynchronous GPU time is not measured",
+      "renderCounters": "All sky, habitat, avatar and shadow passes; reset once per frame"
+    },
+    "cases": [
+      {
+        "name": "standing",
+        "configuration": {
+          "viewport": {
+            "width": 1280,
+            "height": 720
+          },
+          "drawingBuffer": {
+            "width": 1600,
+            "height": 900
+          },
+          "renderPixelRatio": 1.25,
+          "preset": "auto",
+          "shadows": true,
+          "pixelRatio": 1.25,
+          "view": "explore",
+          "simulationRate": 1
+        },
+        "baseline": {
+          "recordedAt": "2026-10-16T17:20:26.521Z",
+          "frames": 1315,
+          "recordingSeconds": 10,
+          "results": {
+            "averageFps": 131.38,
+            "rafFrameMs": {
+              "median": 7.6,
+              "p95": 8.2
+            },
+            "cpuSubmissionMs": {
+              "median": 2.5,
+              "p95": 3.5
+            },
+            "renderCalls": {
+              "median": 200,
+              "p95": 202
+            },
+            "renderedTriangles": {
+              "median": 447064,
+              "p95": 447556
+            },
+            "rendererMemory": {
+              "geometries": 90,
+              "textures": 3
+            }
+          }
+        },
+        "candidate": {
+          "recordedAt": "2026-10-16T17:18:08.493Z",
+          "frames": 1314,
+          "recordingSeconds": 10,
+          "results": {
+            "averageFps": 131.27,
+            "rafFrameMs": {
+              "median": 7.6,
+              "p95": 8.2
+            },
+            "cpuSubmissionMs": {
+              "median": 2.5,
+              "p95": 3.4
+            },
+            "renderCalls": {
+              "median": 196,
+              "p95": 197
+            },
+            "renderedTriangles": {
+              "median": 456496,
+              "p95": 456988
+            },
+            "rendererMemory": {
+              "geometries": 85,
+              "textures": 3
+            }
+          }
+        }
+      },
+      {
+        "name": "moving",
+        "configuration": {
+          "viewport": {
+            "width": 1280,
+            "height": 720
+          },
+          "drawingBuffer": {
+            "width": 1600,
+            "height": 900
+          },
+          "renderPixelRatio": 1.25,
+          "preset": "auto",
+          "shadows": true,
+          "pixelRatio": 1.25,
+          "view": "explore",
+          "simulationRate": 1
+        },
+        "baseline": {
+          "recordedAt": "2026-10-16T17:21:05.266Z",
+          "frames": 1313,
+          "recordingSeconds": 10.01,
+          "results": {
+            "averageFps": 131.14,
+            "rafFrameMs": {
+              "median": 7.6,
+              "p95": 8.2
+            },
+            "cpuSubmissionMs": {
+              "median": 2.4,
+              "p95": 3.2
+            },
+            "renderCalls": {
+              "median": 195,
+              "p95": 197
+            },
+            "renderedTriangles": {
+              "median": 446696,
+              "p95": 447200
+            },
+            "rendererMemory": {
+              "geometries": 97,
+              "textures": 3
+            }
+          }
+        },
+        "candidate": {
+          "recordedAt": "2026-10-16T17:18:25.100Z",
+          "frames": 1312,
+          "recordingSeconds": 10,
+          "results": {
+            "averageFps": 131.11,
+            "rafFrameMs": {
+              "median": 7.6,
+              "p95": 8.2
+            },
+            "cpuSubmissionMs": {
+              "median": 2.4,
+              "p95": 3
+            },
+            "renderCalls": {
+              "median": 186,
+              "p95": 190
+            },
+            "renderedTriangles": {
+              "median": 456088,
+              "p95": 456580
+            },
+            "rendererMemory": {
+              "geometries": 86,
+              "textures": 3
+            }
+          }
+        }
+      },
+      {
+        "name": "orbit",
+        "configuration": {
+          "viewport": {
+            "width": 1280,
+            "height": 720
+          },
+          "drawingBuffer": {
+            "width": 1600,
+            "height": 900
+          },
+          "renderPixelRatio": 1.25,
+          "preset": "auto",
+          "shadows": true,
+          "pixelRatio": 1.25,
+          "view": "orbit",
+          "simulationRate": 1
+        },
+        "baseline": {
+          "recordedAt": "2026-10-16T17:21:19.079Z",
+          "frames": 1316,
+          "recordingSeconds": 10.01,
+          "results": {
+            "averageFps": 131.44,
+            "rafFrameMs": {
+              "median": 7.6,
+              "p95": 8.1
+            },
+            "cpuSubmissionMs": {
+              "median": 1.9,
+              "p95": 2.5
+            },
+            "renderCalls": {
+              "median": 217,
+              "p95": 217
+            },
+            "renderedTriangles": {
+              "median": 455800,
+              "p95": 455800
+            },
+            "rendererMemory": {
+              "geometries": 118,
+              "textures": 3
+            }
+          }
+        },
+        "candidate": {
+          "recordedAt": "2026-10-16T17:18:53.898Z",
+          "frames": 1317,
+          "recordingSeconds": 10.01,
+          "results": {
+            "averageFps": 131.55,
+            "rafFrameMs": {
+              "median": 7.6,
+              "p95": 8.1
+            },
+            "cpuSubmissionMs": {
+              "median": 1.9,
+              "p95": 2.6
+            },
+            "renderCalls": {
+              "median": 202,
+              "p95": 202
+            },
+            "renderedTriangles": {
+              "median": 465032,
+              "p95": 465032
+            },
+            "rendererMemory": {
+              "geometries": 103,
+              "textures": 3
+            }
+          }
+        }
+      },
+      {
+        "name": "touch",
+        "configuration": {
+          "viewport": {
+            "width": 844,
+            "height": 390
+          },
+          "drawingBuffer": {
+            "width": 844,
+            "height": 390
+          },
+          "renderPixelRatio": 1,
+          "preset": "auto",
+          "shadows": false,
+          "pixelRatio": 1,
+          "view": "explore",
+          "simulationRate": 1
+        },
+        "baseline": {
+          "recordedAt": "2026-10-16T17:19:45.873Z",
+          "frames": 1315,
+          "recordingSeconds": 10.01,
+          "results": {
+            "averageFps": 131.34,
+            "rafFrameMs": {
+              "median": 7.6,
+              "p95": 8.2
+            },
+            "cpuSubmissionMs": {
+              "median": 2.1,
+              "p95": 2.6
+            },
+            "renderCalls": {
+              "median": 155,
+              "p95": 157
+            },
+            "renderedTriangles": {
+              "median": 359204,
+              "p95": 359696
+            },
+            "rendererMemory": {
+              "geometries": 94,
+              "textures": 1
+            }
+          }
+        },
+        "candidate": {
+          "recordedAt": "2026-10-16T17:19:18.748Z",
+          "frames": 1313,
+          "recordingSeconds": 10,
+          "results": {
+            "averageFps": 131.17,
+            "rafFrameMs": {
+              "median": 7.6,
+              "p95": 8.2
+            },
+            "cpuSubmissionMs": {
+              "median": 2.1,
+              "p95": 2.5
+            },
+            "renderCalls": {
+              "median": 151,
+              "p95": 152
+            },
+            "renderedTriangles": {
+              "median": 368300,
+              "p95": 368792
+            },
+            "rendererMemory": {
+              "geometries": 85,
+              "textures": 1
+            }
+          }
+        }
+      }
+    ]
+  },
+  "bundle": {
+    "approximateGzipBytes": 203000,
+    "diagnosticCodeApproximateGzipBytes": 2100,
+    "note": "Release-candidate estimate; final content hashes may differ."
+  }
+}

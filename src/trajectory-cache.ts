@@ -3,7 +3,6 @@ import type { MotionState } from "./physics.ts";
 /** Reuse stationary predictions without delaying any change to the launch state. */
 export function createTrajectoryCache<T>(predict: (shot: MotionState) => T): {
   get(shot: MotionState): T;
-  clear(): void;
 } {
   let cached: { shot: MotionState; result: T } | undefined;
   return {
@@ -25,9 +24,6 @@ export function createTrajectoryCache<T>(predict: (shot: MotionState) => T): {
       const result = predict(shot);
       cached = { shot: key, result };
       return result;
-    },
-    clear() {
-      cached = undefined;
     },
   };
 }

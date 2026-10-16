@@ -68,8 +68,8 @@ export function buildHabitatLighting(root: THREE.Group) {
       brackets.push(part(LIGHT_RADIUS - 1.0, side * (LIGHT_ACROSS + 0.45), new THREE.Vector3(0.22, 1.6, 0.22)));
     }
     // Crown and spine-facing fixtures make the structure readable from below.
-    housings.push(part(175.6, 0, new THREE.Vector3(4.2, 0.32, 1.25)));
-    diffusers.push(part(175.82, 0, new THREE.Vector3(3.7, 0.08, 0.98)));
+    housings.push(part(175.14, 0, new THREE.Vector3(4.2, 0.32, 1.25)));
+    diffusers.push(part(175.34, 0, new THREE.Vector3(3.7, 0.08, 0.98)));
   }
   for (let spoke = 0; spoke < 6; spoke++) {
     const angle = spoke / 6 * TAU + Math.PI / 6;
@@ -77,9 +77,9 @@ export function buildHabitatLighting(root: THREE.Group) {
     const rotation = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -angle);
     for (const side of [-1, 1]) for (const radius of [60, 112, 160]) {
       if (side < 0 && spoke % 2 === 0) continue;
-      const point = radial.clone().multiplyScalar(radius).setY(side * (19 + (radius - 12) / 198 * 4));
+      const point = radial.clone().multiplyScalar(radius).setY(side * (19.3 + (radius - 10.5) / (FLOOR_RADIUS - 10.5) * 4));
       structuralHousings.push(new THREE.Matrix4().compose(point, rotation, new THREE.Vector3(1.6, 0.32, 0.7)));
-      structuralDiffusers.push(new THREE.Matrix4().compose(point.clone().add(new THREE.Vector3(0, -side * 0.21, 0)), rotation,
+      structuralDiffusers.push(new THREE.Matrix4().compose(point.clone().add(new THREE.Vector3(0, -side * 0.2, 0)), rotation,
         new THREE.Vector3(1.1, 0.08, 0.46)));
     }
   }

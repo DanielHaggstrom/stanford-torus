@@ -166,3 +166,26 @@ test("a probe initially inside scenery stops immediately, and free samples still
   const free = world.sampleTrajectory(initial, { duration: 1, step: 0.1, stopAtCollision: false });
   nearVector(free.at(-1)!, stepFreeFlight(initial, 1).position);
 });
+
+test("an inward launch from the deck returns later without an immediate surface hit", () => {
+  const world = buildSceneryCollision([]);
+  const initial = motion({ x: FLOOR_RADIUS, y: 0, z: 0 }, { x: -7, y: 0, z: 0 });
+  const impact = world.firstImpact(initial, 3);
+  assert.equal(impact?.kind, "floor");
+  assert.ok(impact!.time > 1 && impact!.time < 2);
+  assert.ok(impact!.position.z < 0);
+});
+
+test("the production trajectory sampler includes exact duration and rejects invalid requests", () => {
+  const world = buildSceneryCollision([]);
+  const initial = motion({ x: 0, y: 0, z: 0 }, { x: 2, y: 0, z: 0 });
+  const points = world.sampleTrajectory(initial, { duration: 1, step: 0.3, angularSpeed: 0 });
+  assert.equal(points.length, 5);
+  nearVector(points.at(-1)!, { x: 2, y: 0, z: 0 });
+  for (const step of [0, -1, Number.NaN, Infinity]) {
+    assert.throws(() => world.sampleTrajectory(initial, { duration: 1, step }), RangeError);
+  }
+  for (const duration of [-1, Number.NaN, Infinity]) {
+    assert.throws(() => world.sampleTrajectory(initial, { duration, step: 0.1 }), RangeError);
+  }
+});

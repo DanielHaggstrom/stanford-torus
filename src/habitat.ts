@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { buildTramSystem } from "./trams.ts";
 import { stationSupportHeight } from "./tram-physics.ts";
 import { buildHabitatStructure } from "./habitat-structure.ts";
@@ -6,11 +7,11 @@ import { CIVIC_SITES, civicSiteAt, createCivicParts } from "./civic-buildings.ts
 import { buildDeckSurface } from "./deck-surface.ts";
 import { buildHabitatLighting } from "./habitat-lighting.ts";
 import { buildElevators, isElevatorLot } from "./elevators.ts";
+import { FLOOR_RADIUS as HABITAT_RADIUS, HALF_WIDTH as HABITAT_HALF_WIDTH } from "./physics.ts";
 import type { StaticCollider } from "./scenery-collision.ts";
 
 /** Metres, in the habitat's co-rotating frame. The spin axis is world Y. */
-export const HABITAT_RADIUS = 210;
-export const HABITAT_HALF_WIDTH = 22;
+export { HABITAT_RADIUS, HABITAT_HALF_WIDTH };
 
 export const HABITAT_DISTRICTS = [
   { name: "Aurora Commons", angle: 0, color: "#65e3d0" },
@@ -289,6 +290,7 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
   deck.receiveShadow = deck.castShadow = true;
 
   const boxes: Instance[] = [];
+  const waterPatches: THREE.BufferGeometry[] = [];
   const glass: Instance[] = [];
   const trims: Instance[] = [];
   const roofs: Instance[] = [];
@@ -464,7 +466,7 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
   ) => {
     peopleCount++;
     const scale = 0.9 + random() * 0.16;
-    const anchor = floorMatrix(angle, across, 0.1)
+    const anchor = floorMatrix(angle, across, seated ? 0.1 : 0)
       .multiply(new THREE.Matrix4().makeRotationY(facing))
       .scale(new THREE.Vector3(scale, scale, scale));
     const shirt = shirtPalette[Math.floor(random() * shirtPalette.length)];
@@ -700,7 +702,7 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
           }
         }
       } else if (isPool) {
-        mesh(
+        waterPatches.push(
           cylinderBand(
             209.87,
             side > 0 ? 12.9 : -19.3,
@@ -709,7 +711,6 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
             angle + 0.034,
             10,
           ),
-          materials.water,
         );
         for (const offset of [-0.037, 0.037]) {
           placeBox(trims, angle + offset, side * 16.1, 0.13, 0.35, 0.26, 7.2);
@@ -747,15 +748,12 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
           Math.floor(random() * 4)
         ];
         const facadeAcross = across - side * (depth / 2 + 0.035);
-        placeBox(
-          trims,
-          buildingAngle,
-          across,
-          0.25,
-          width + 0.7,
-          0.35,
-          depth + 0.6,
-        );
+        // Preserve the plinth's top while burying its base in the curved deck.
+        trims.push({
+          matrix: floorMatrix(buildingAngle, across, 0.175,
+            new THREE.Vector3(width + 0.7, 0.5, depth + 0.6)),
+          collisionKind: "building foundation",
+        });
 
         if (style === 4) {
           // Open U-shaped courtyard homes, with a planted centre and two wings.
@@ -1091,9 +1089,9 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
           trims,
           benchAngle,
           benchAcross,
-          0.29,
+          0.26,
           0.12,
-          0.5,
+          0.56,
           0.6,
           undefined,
           edge * 0.95,
@@ -1106,6 +1104,15 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
       );
     }
     if (i % 2 === 0) placeBox(dashes, angle, 0, 0.115, 2.4, 0.025, 0.06);
+  }
+
+  // Water shares one material and the habitat transform; batching its small
+  // patches removes per-pool draws without expanding instanced scenery.
+  if (waterPatches.length) {
+    const water = mergeGeometries(waterPatches);
+    if (!water) throw new Error("Reservoir water patches have incompatible geometry.");
+    mesh(water, materials.water).name = "Batched reservoir water";
+    waterPatches.forEach((geometry) => geometry.dispose());
   }
 
   // Bright route portals mark each neighbourhood without closing the view.

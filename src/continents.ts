@@ -325,6 +325,16 @@ const CONTINENTS: readonly Outline[] = [
   ],
 ];
 
+// Most Earth vertices lie outside any given outline. Reject those points before
+// the edge walk; inclusive bounds preserve classification on coastline edges.
+const BOUNDED_CONTINENTS = CONTINENTS.map((outline) => ({
+  outline,
+  west: Math.min(...outline.map(([longitude]) => longitude)),
+  east: Math.max(...outline.map(([longitude]) => longitude)),
+  south: Math.min(...outline.map(([, latitude]) => latitude)),
+  north: Math.max(...outline.map(([, latitude]) => latitude)),
+}));
+
 function contains(
   outline: Outline,
   longitude: number,
@@ -346,5 +356,8 @@ function contains(
 export function isLand(longitude: number, latitude: number): boolean {
   // Antarctica's simplified wavy coast avoids a perfectly circular ice cap.
   if (latitude < -69 + 4 * Math.sin((longitude * Math.PI) / 65)) return true;
-  return CONTINENTS.some((outline) => contains(outline, longitude, latitude));
+  return BOUNDED_CONTINENTS.some(({ outline, west, east, south, north }) =>
+    longitude >= west && longitude <= east && latitude >= south && latitude <= north &&
+    contains(outline, longitude, latitude),
+  );
 }

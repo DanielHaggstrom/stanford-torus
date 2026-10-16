@@ -1,123 +1,94 @@
 # Torus
 
-A browser game for exploring a rotating space habitat. Walk, jump, fly, and launch
-probes to see how trajectories curve in a rotating reference frame.
+Explore a rotating space habitat in your browser. Walk, jump, ride a tram, fly
+into space, and launch probes to see trajectories in different reference frames.
 
 **[Play Torus](https://torus.classroom-fox.com)** ·
 [Build checks](https://github.com/DanielHaggstrom/stanford-torus/actions) ·
 [MIT license](LICENSE)
 
-**Version 0.10.0** · Keyboard, mouse, or touch · WebGL 2
+**v1.0.0-rc.1** · Keyboard, mouse, or touch · WebGL 2
 
-## Playing
+## Play
 
-The game opens inside the habitat. Click the world to capture your mouse, or drag
-to look if capture is unavailable. Open **Controls** for settings and help.
+The game starts inside the habitat. Click or press **Enter** to explore;
+**H** opens controls and settings. Mouse capture is optional: drag to look if
+your browser cannot capture it.
 
-On phones and tablets, use the left stick to move and drag the world to look.
-Hold and drag Fire to charge and aim with the same thumb. Fly enables Rise and
-Down. Systems contains probe controls, precision flight, fullscreen, and Reset.
-Touch play uses landscape; portrait pauses with a rotate-device prompt.
+| Key | Action |
+| --- | --- |
+| WASD / arrows | Move |
+| Mouse / IJKL | Look |
+| Space / Q | Jump or rise / descend in flight |
+| V / hold Shift | Toggle flight / precision flight |
+| F / left click | Tap to fire; hold to charge, release to launch |
+| Right click | Cancel charge |
+| C / G | Clear probes / toggle trajectory preview |
+| Hold R | Reset position and clear probes |
+| , / . / T | Slower / faster time / return to 1× |
+| O | Toggle exterior orbit view |
+| H / M | Controls / mute |
+| Esc / Enter | Pause or return focus to the world / resume |
+| Tab / Shift Tab | Select controls; Enter or Space activates them |
 
-Touch controls appear automatically for a primary touch pointer. Touchscreen
-laptops with a primary mouse keep desktop controls. Input layout, graphics,
-sensitivity, and sound preferences are available under **Controls** and saved
-in your browser.
+Keep moving to gain speed; there is no sprint button. A tap fires at 28 m/s.
+Charging begins after 0.2 seconds and reaches 90 m/s one second later. The dotted
+path predicts the next shot; gold trails show fired probes. The newest five remain.
 
-| Controls                                | Action                                              |
-| --------------------------------------- | --------------------------------------------------- |
-| WASD / arrow keys                       | Move                                                |
-| Mouse                                   | Look around                                         |
-| Space                                   | Jump, or rise in flight                             |
-| Q                                       | Descend in flight                                   |
-| Shift                                   | Hold for precision flight                           |
-| V                                       | Toggle walking / flight                             |
-| Hold F, left click, or **Launch probe** | Charge; release to fire                             |
-| Right click                             | Cancel a charged shot                               |
-| C                                       | Clear probes                                        |
-| Hold R for 0.6 seconds                   | Reset position and clear probes                     |
-| , / . or **Time** selector; T            | Choose 1×, 5×, or 10×; T returns to 1×                |
-| O                                       | Switch between first person and exterior orbit view |
-| M / **Sound** button                    | Mute or unmute; volume is under **Controls**         |
-| Drag / scroll in orbit view             | Rotate the camera / zoom                            |
-| Esc                                     | Release the mouse and pause exploration             |
+In orbit view, use drag or WASD/arrows to inspect, and scroll or +/− to zoom.
+**N** focuses the destination slider. Choose a point with arrows, Tab to
+**Skip forward**, and press Enter. The shared clock advances for the whole sky;
+airborne probes clear and landed probes stay. Esc returns focus to the world.
 
-Keep moving to build speed: walking ramps from 4 to 10 m/s and flight from
-14 to 36 m/s. There is no sprint button. Precision flight runs at 1.5–3 m/s.
-Jumps allow a little grace after leaving an edge and remember a press just before
-landing. Flight stays deck-aligned inside and inertial outside. The transition
-blends over one real second, preserving position, aim, and momentum. Automatic
-braking remains active.
+On a phone or tablet, play in landscape. Use the left stick to move and drag the
+world to look. Hold and drag **Fire** to charge and aim. **Fly** enables Rise and
+Down; **Systems** contains the remaining options. Touchscreen laptops retain
+desktop controls when their primary pointer is a mouse.
 
-Tap to fire at 28 m/s. Charging starts after holding for 0.2 seconds and reaches
-90 m/s one second later, using real time. Left click requires mouse capture.
-The dotted path previews the next shot; gold trails show fired probes. Only the
-newest five remain.
+Settings persist in your browser. Opening Controls, pausing exploration, or hiding
+the tab pauses the simulation. Sound begins after your first input.
 
-In orbit view, select a point on the map and choose **Skip forward**. This advances
-the shared clock for the habitat, Earth, Moon, and Sun. Moving probes disappear;
-landed probes remain in place. Your position is preserved and velocity cleared.
+## The habitat
 
-Opening **Controls** or hiding the tab pauses time.
+Six districts contain procedural buildings, trees, farms, water, and residents.
+Open monorail carts stop at six stations. Three sealed elevators connect to a
+central orbital facility; its independent solar/radiator array tracks the Sun
+and holds position during eclipse. Earth, Moon, Sun, lighting, and time skips
+share an approximate orbital model.
 
-Open monorail carts run spinward on the mint line and antispinward on the amber
-line, with six stations and automatic stops. Walk up a ramp onto a cart, move
-around, or jump off. Carts reach 69 km/h; collisions push you to the side.
+This is a stylized playground: the deck is cylindrical, scenery collisions are
+simplified, and buildings and elevators have no accessible interiors. Players can
+fly through the enclosure; probes stop on it. Flight follows the ring inside and
+smoothly becomes inertial outside. A 750 m boundary limits exploration.
 
-Footsteps, shots, tram motors, brakes, arrival chimes, and a quiet ventilation hum
-are synthesized in the browser. Sound starts after your first input and stops
-outside the enclosure, while paused, or in orbit view.
+## Develop
 
-## What's included
-
-- Six districts with procedural buildings, trees, farms, water, and static residents.
-- A futuristic research lab, civic hall, and medical centre with closed facades and small emblems.
-- Two monorail lines, six raised stations, and open carts you can walk into.
-- Walking, jumping, stabilized flight, and a visible first-person body and launcher.
-- Solid buildings, trees, and props; rooftop landings and wall sliding.
-- Rotating-frame ballistics and matching trajectory previews against scenery.
-- Procedural sound, a framed glass enclosure, pressure hull, trusses, and docking hub.
-- An independent axis with 20 tilting solar/radiator wings, a sealed orbital facility, and antennae.
-- Three enclosed spoke elevators, with animated travel and stop indicators.
-- Directional sunlight, warm habitat lights, and optional Sun shadows.
-- Earth, Moon, Sun, eclipses, adjustable time, and an inertial exterior view with an orbit map.
-
-This stylized prototype uses a cylindrical deck and simplified scenery collisions.
-Probes hit the enclosure; players can fly through it. The sky uses approximate
-circular orbits and a fixed opening alignment. Civic buildings, elevators, and
-the orbital facility have no accessible interiors. Lighting is approximate;
-multiplayer, saved progress, and gamepad support are not implemented.
-
-Exploration is limited to a sphere with a 750 m radius around the hub. A faint
-boundary appears as you approach it: players stay inside, and probes disappear
-when they cross out.
-
-## Development
-
-Requires **Node.js 22.18 or newer** and npm.
+Install **Node.js 22.18 or newer** and npm. No keys or server are needed.
 
 ```sh
 npm ci
-npm run dev      # Open the local address printed by Vite
-npm test        # Physics, movement, orbit, and time-skip tests
-npm run check   # TypeScript checks
-npm run build   # Production build in dist/
-npm run preview # Serve the production build locally
+npm run dev        # Local development server
+npm test           # Physics, geometry, and behaviour regressions
+npm run check      # Strict TypeScript checks
+npm run build      # Static site in dist/
+npm run preview    # Serve that build locally
+npm run benchmark  # CPU timings and scene inventory
 ```
 
-[Three.js](https://threejs.org/) is the only runtime dependency; development uses
-TypeScript and Vite. Assets are generated in code. No API keys, downloaded models,
-texture packs, external fonts, or backend are required. The build is a static site.
+[Three.js](https://threejs.org/) is the only runtime dependency. TypeScript and
+Vite handle development and builds. Geometry and sounds are generated in code;
+there are no texture packs, downloaded models, external fonts, or backend.
 
-Further details: [flight and movement](docs/flight.md), [orbits](docs/orbit.md), [hosting](docs/deployment.md),
-[touch controls](docs/mobile.md), [sound and collisions](docs/sound-and-collision.md),
-and [axis and panels](docs/axis.md).
+Details: [movement](docs/flight.md), [orbits](docs/orbit.md),
+[touch](docs/mobile.md), [sound and collisions](docs/sound-and-collision.md),
+[axis](docs/axis.md), [performance](docs/performance.md),
+[v1 audit](docs/v1-audit.md), and [hosting](docs/deployment.md).
 
 ## Roadmap
 
-- Add terrain variation, accessible interiors, and a full toroidal deck.
-- Add scale and spin presets and more trajectory experiments.
-- Improve accessibility, configurable controls, and performance settings.
-- Expand mobile device testing, explore gamepads, and eventually shared exploration.
+- Test more physical phones and tablets; improve accessibility and add remapping.
+- Add terrain variation and a full toroidal deck.
+- Add scale/spin presets and more trajectory experiments.
+- Explore accessible interiors, gamepads, and shared exploration.
 
-These are directions for future work, with no fixed release schedule.
+These are possible next steps, with no fixed schedule.

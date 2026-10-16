@@ -1,6 +1,6 @@
 {
   "name": "stanford-torus",
-  "version": "0.10.0",
+  "version": "1.0.0-rc.1",
   "private": true,
   "type": "module",
   "description": "A lightweight procedural rotating space habitat playground.",
@@ -12,7 +12,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "test": "node --experimental-strip-types --test tests/*.test.ts",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "benchmark": "node --experimental-strip-types --expose-gc scripts/benchmark.ts"
   },
   "dependencies": {
     "three": "0.186.1"

@@ -53,16 +53,6 @@ test("mutating the original shot cannot mutate the stored launch key", () => {
   assert.equal(cache.get(shot), 3);
 });
 
-test("clearing forces a fresh prediction without changing the shot", () => {
-  let predictions = 0;
-  const cache = createTrajectoryCache(() => ++predictions);
-  const shot = launch();
-  assert.equal(cache.get(shot), 1);
-  cache.clear();
-  assert.equal(cache.get(shot), 2);
-  assert.equal(cache.get(shot), 2);
-});
-
 test("walking at 120 Hz updates every preview and retains the solver's exact contact", () => {
   const building: StaticCollider = {
     center: { x: 202, y: 0, z: 0 },

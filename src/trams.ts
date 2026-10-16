@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { FLOOR_RADIUS } from "./physics.ts";
 import {
   getTramState,
   TRAM_STATION_COUNT,
@@ -20,7 +21,6 @@ type Station = { name: string; angle: number; color: string };
 type Direction = "spinward" | "antispinward";
 
 const TAU = Math.PI * 2;
-const FLOOR_RADIUS = 210;
 const WHITE = "#dce6db";
 const DARK = "#304b4b";
 const MINT = "#90bbaa";
@@ -421,10 +421,10 @@ export function buildTramSystem(
         stationBox(
           anchor,
           -4.1 + end * 1.8,
-          1.55,
+          1.475,
           side * 0.7,
           0.11,
-          2.8,
+          2.95,
           0.11,
           "#94b8ad",
         );
@@ -457,7 +457,7 @@ export function buildTramSystem(
       const signAnchor = anchor
         .clone()
         .multiply(new THREE.Matrix4().makeTranslation(4.0, 0, side * 0.56));
-      stationBox(signAnchor, 0, 1.38, 0, 0.09, 2.52, 0.09, "#668c80");
+      stationBox(signAnchor, 0, 1.32, 0, 0.09, 2.64, 0.09, "#668c80");
       stationBox(signAnchor, 0, 2.0, 0, 1.16, 0.9, 0.14, "#28443f");
       stationBox(
         signAnchor,

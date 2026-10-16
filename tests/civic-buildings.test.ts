@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import * as THREE from "three";
 import { buildHabitat } from "../src/habitat.ts";
-import { buildSceneryCollision } from "../src/scenery-collision.ts";
+import { buildSceneryCollision, type StaticCollider } from "../src/scenery-collision.ts";
 import { FLOOR_RADIUS, type MotionState, type Vec3 } from "../src/physics.ts";
 import { CIVIC_FRONT_ACROSS, CIVIC_SITES, civicSiteAngle } from "../src/civic-buildings.ts";
 
@@ -13,6 +13,25 @@ const add = (a: Vec3, b: Vec3, n = 1): Vec3 => ({ x: a.x + b.x * n, y: a.y + b.y
 const motion = (position: Vec3, velocity = { x: 0, y: 0, z: 0 }): MotionState => ({ position, velocity });
 const atAngle = (angle: number, across: number): Vec3 => ({ x: FLOOR_RADIUS * Math.cos(angle), y: across, z: FLOOR_RADIUS * Math.sin(angle) });
 const distance = (a: Vec3, b: Vec3) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
+
+function corners(collider: StaticCollider): Vec3[] {
+  const points: Vec3[] = [];
+  for (const x of [-1, 1]) for (const y of [-1, 1]) for (const z of [-1, 1]) {
+    points.push(add(add(add(collider.center,
+      collider.axes[0], x * collider.halfSize.x),
+      collider.axes[1], y * collider.halfSize.y),
+      collider.axes[2], z * collider.halfSize.z));
+  }
+  return points;
+}
+
+function contains(collider: StaticCollider, point: Vec3): boolean {
+  const relative = { x: point.x - collider.center.x, y: point.y - collider.center.y, z: point.z - collider.center.z };
+  return collider.axes.every((axis, index) =>
+    Math.abs(relative.x * axis.x + relative.y * axis.y + relative.z * axis.z) <=
+    [collider.halfSize.x, collider.halfSize.y, collider.halfSize.z][index] + 1e-6,
+  );
+}
 
 test("public landmarks register real walls and roofs against player and probe collision", () => {
   for (const site of CIVIC_SITES) {
@@ -77,5 +96,39 @@ test("civic replacements leave both full side promenades clear", () => {
       assert.ok(distance(result.state.position, next.position) < 1e-5);
       previous = next;
     }
+  }
+});
+
+test("laboratory canopy supports join the blades to the actual building solids", () => {
+  const canopies = habitat.colliders.filter((collider) => collider.kind === "civic laboratory canopy");
+  const brackets = habitat.colliders.filter((collider) => collider.kind === "civic laboratory canopy bracket");
+  const hosts = habitat.colliders.filter((collider) =>
+    collider.kind === "civic laboratory wall" || collider.kind === "civic laboratory roof",
+  );
+  assert.ok(brackets.length > 0);
+  for (const canopy of canopies) {
+    assert.ok(brackets.some((bracket) => corners(bracket).some((point) => contains(canopy, point))), "unsupported canopy blade");
+  }
+  for (const bracket of brackets) {
+    const ends = corners(bracket);
+    assert.ok(ends.some((point) => canopies.some((canopy) => contains(canopy, point))), "bracket misses canopy");
+    assert.ok(ends.some((point) => hosts.some((host) => contains(host, point))), "bracket misses supporting wall or roof");
+  }
+});
+
+test("roof instruments and housing foundations meet their supporting surfaces", () => {
+  const roofs = habitat.colliders.filter((collider) => collider.kind === "civic laboratory roof");
+  const equipment = habitat.colliders.filter((collider) =>
+    collider.kind === "civic laboratory skylight frame" || collider.kind === "civic laboratory vent",
+  );
+  assert.ok(equipment.length > 0);
+  for (const item of equipment) {
+    assert.ok(corners(item).some((point) => roofs.some((roof) => contains(roof, point))), item.kind);
+  }
+  const foundations = habitat.colliders.filter((collider) => collider.kind === "building foundation");
+  assert.ok(foundations.length > 0);
+  for (const foundation of foundations) {
+    const bottom = add(foundation.center, foundation.axes[1], -foundation.halfSize.y);
+    assert.ok(Math.hypot(bottom.x, bottom.z) >= FLOOR_RADIUS - 1e-6, "foundation floats above deck");
   }
 });

@@ -32,7 +32,6 @@ import {
   TRAM_WIDTH,
   TRAM_PLATFORM_HEIGHT,
   TRAM_PLATFORM_ACROSS,
-  TRAM_PLATFORM_WIDTH,
   TRAM_PLATFORM_LENGTH,
   type TramSupport,
 } from "../src/tram-physics.ts";

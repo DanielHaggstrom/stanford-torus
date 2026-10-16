@@ -45,8 +45,8 @@
           </select>
         </div>
         <button id="sound-toggle" class="text-button" aria-label="Mute sound (M)" aria-pressed="true" title="Toggle sound (M)">Sound on</button>
-        <button id="help-button" class="text-button" aria-label="Show controls">
-          ? <span>Controls</span>
+        <button id="help-button" class="text-button" aria-label="Show controls (H)" aria-keyshortcuts="H" title="Controls (H)">
+          <kbd>H</kbd> <span>Controls</span>
         </button>
       </div>
     </header>
@@ -70,7 +70,7 @@
       <p id="tram-status" class="tram-status" hidden></p>
       <div class="divider"></div>
       <label class="toggle-row" for="ghost-toggle"
-        ><span>Ghost trajectory</span
+        ><span>Ghost trajectory <kbd>G</kbd></span
         ><input id="ghost-toggle" type="checkbox" checked
       /></label>
       <div class="trajectory-legend">
@@ -106,7 +106,7 @@
       <p class="eyebrow">INERTIAL OBSERVER</p>
       <small id="axis-state">SOLAR TRACKING</small>
       <span><kbd>O</kbd> Return to habitat</span
-      ><small id="orbit-camera-hint">Drag to inspect · Scroll to zoom</small>
+      ><small id="orbit-camera-hint">Drag / arrows to inspect · Scroll / + − to zoom · N map</small>
     </div>
     <aside
       id="orbit-map-panel"
@@ -166,7 +166,7 @@
       ><span><kbd>V</kbd> flight</span
       ><span><kbd>C</kbd> clear</span><span><kbd>, .</kbd> time</span
       ><span><kbd>O</kbd> orbit view</span><span><kbd>HOLD R</kbd> reset</span
-      ><span><kbd>ESC</kbd> release mouse</span>
+      ><span><kbd>H</kbd> controls</span><span><kbd>ESC</kbd> pause</span>
     </div>
     <nav id="touch-toolbar" aria-label="Touch game options">
       <button id="touch-systems-toggle" aria-controls="flight-panel" aria-expanded="false">Systems</button>
@@ -202,7 +202,7 @@
         ×
       </button>
       <p class="eyebrow">A DIFFERENT KIND OF PLAYGROUND</p>
-      <h2>Find your feet.<br />Then leave them.</h2>
+      <h2>Controls & settings</h2>
       <div class="help-preferences">
         <label for="input-mode">Controls
           <select id="input-mode">
@@ -246,7 +246,7 @@
         <dt>W A S D / Arrow keys</dt>
         <dd>Move; keep moving to build speed</dd>
         <dt>Mouse / drag</dt>
-        <dd>Look around</dd>
+        <dd>Look around; I J K L also aim with the keyboard</dd>
         <dt>Space</dt>
         <dd>Jump, or rise in flight</dd>
         <dt>Shift / Q</dt>
@@ -257,14 +257,20 @@
         <dd>Tap to fire; hold for 1.2 seconds for full power</dd>
         <dt>C</dt>
         <dd>Clear probes. Only the newest five are kept.</dd>
+        <dt>G</dt>
+        <dd>Show or hide the trajectory preview</dd>
         <dt>Right click</dt>
         <dd>Cancel a charged shot</dd>
         <dt>, / . or Time selector; T</dt>
         <dd>Simulation speed: 1×, 5×, 10×. T returns to 1×.</dd>
-        <dt>Hold R / Esc</dt>
-        <dd>Hold briefly to reset position / release mouse</dd>
+        <dt>Hold R</dt>
+        <dd>Hold 0.6 seconds to reset position and clear probes</dd>
+        <dt>H / Esc / Enter</dt>
+        <dd>Open controls / close controls or pause exploration / resume</dd>
+        <dt>Tab / Shift Tab</dt>
+        <dd>Release the mouse and focus controls; navigate buttons and settings. Enter or Space activates the focused control.</dd>
         <dt>O</dt>
-        <dd>Toggle inertial orbit view; drag to inspect, scroll to zoom</dd>
+        <dd>Toggle inertial orbit view; drag or use WASD / arrows to inspect, scroll or + / − to zoom</dd>
         <dt>M / Sound button</dt>
         <dd>Mute or unmute. Set volume above.</dd>
         <dt>Trams</dt>
@@ -274,8 +280,8 @@
         </dd>
         <dt>Orbit map</dt>
         <dd>
-          Select a destination and skip forward; landed probes stay, airborne
-          probes clear
+          Press N to focus the destination slider; arrows choose a point.
+          Tab to Skip forward, then Enter. Landed probes stay; airborne probes clear.
         </dd>
       </dl>
       <p>

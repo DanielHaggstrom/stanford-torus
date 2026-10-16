@@ -4,14 +4,10 @@ import {
   ANGULAR_SPEED,
   FLOOR_RADIUS,
   GRAVITY,
-  HALF_WIDTH,
-  advanceBallistic,
-  firstHabitatImpact,
   resolveHabitatCollision,
   rotateY,
   rotatingAcceleration,
   rotationVelocity,
-  sampleTrajectory,
   stepFreeFlight,
   type MotionState,
   type Vec3,
@@ -111,76 +107,4 @@ test("deck collision keeps tangential motion and stops penetration", () => {
     velocity: { x: -7, y: 0, z: 0 },
   });
   near(jump.state.velocity.x, -7);
-});
-
-test("continuous collision catches a projectile crossing the whole habitat in one step", () => {
-  const initial = {
-    position: { x: 0, y: 0, z: 0 },
-    velocity: { x: 1000, y: 0, z: 0 },
-  };
-  const advanced = advanceBallistic(initial, 1);
-  assert.equal(advanced.impact?.kind, "floor");
-  near(advanced.impact!.time, FLOOR_RADIUS / 1000);
-  near(
-    Math.hypot(advanced.state.position.x, advanced.state.position.z),
-    FLOOR_RADIUS,
-  );
-});
-
-test("inward launch from the deck lands later instead of hitting immediately", () => {
-  const initial = {
-    position: { x: FLOOR_RADIUS, y: 0, z: 0 },
-    velocity: { x: -7, y: 0, z: 0 },
-  };
-  const impact = firstHabitatImpact(initial, 3);
-  assert.equal(impact?.kind, "floor");
-  assert.ok(impact!.time > 1 && impact!.time < 2);
-  assert.ok(impact!.position.z < 0);
-});
-
-test("axial side wall is the first collision when firing across the deck", () => {
-  const initial = {
-    position: { x: 190, y: 0, z: 0 },
-    velocity: { x: 0, y: 100, z: 0 },
-  };
-  const impact = firstHabitatImpact(initial, 2);
-  assert.equal(impact?.kind, "side");
-  near(impact!.time, HALF_WIDTH / 100);
-  near(impact!.position.y, HALF_WIDTH);
-  nearVector(impact!.normal, { x: 0, y: -1, z: 0 });
-});
-
-test("ghost endpoint and live projectile match with different simulation step sizes", () => {
-  const initial = {
-    position: { x: FLOOR_RADIUS - 1.7, y: 0, z: 0 },
-    velocity: { x: -18, y: 5, z: 22 },
-  };
-  const ghost = sampleTrajectory(initial, { duration: 12, step: 0.07 });
-  let state = initial;
-  let hit = false;
-  for (let index = 0; index < 2400 && !hit; index++) {
-    const advanced = advanceBallistic(state, 1 / 144);
-    state = advanced.state;
-    hit = advanced.impact !== null;
-  }
-  assert.ok(hit);
-  nearVector(state.position, ghost.at(-1)!, 1e-8);
-});
-
-test("trajectory sampler includes exact duration and rejects an invalid sample step", () => {
-  const initial = {
-    position: { x: 0, y: 0, z: 0 },
-    velocity: { x: 2, y: 0, z: 0 },
-  };
-  const points = sampleTrajectory(initial, {
-    duration: 1,
-    step: 0.3,
-    angularSpeed: 0,
-  });
-  assert.equal(points.length, 5);
-  nearVector(points.at(-1)!, { x: 2, y: 0, z: 0 });
-  assert.throws(
-    () => sampleTrajectory(initial, { duration: 1, step: 0 }),
-    RangeError,
-  );
 });

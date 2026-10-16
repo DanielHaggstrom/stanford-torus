@@ -52,6 +52,7 @@ import { getRenderBudget } from "./render-quality";
 import type { GraphicsQuality } from "./render-quality";
 import { requestLandscape } from "./landscape";
 import type { LandscapeOrientation } from "./landscape";
+import { buildBenchmark } from "./benchmark";
 import "./style.css";
 import "./touch.css";
 
@@ -130,7 +131,6 @@ const trajectoryCache = createTrajectoryCache((shot: MotionState) => {
     }),
   };
 });
-scene.background = null;
 const sky = buildSky();
 const avatar = buildAvatar();
 const audio = buildAudio();
@@ -632,7 +632,7 @@ function showPause() {
   );
   element("orbit-camera-hint").textContent = touch.enabled
     ? "Drag to inspect · Pinch to zoom"
-    : "Drag to inspect · Scroll to zoom";
+    : "Drag / arrows to inspect · Scroll / + − to zoom · N map";
   if (touch.enabled) {
     element("resume-button").textContent = "Resume exploration ↗";
     element("resume-instructions").textContent =
@@ -640,8 +640,8 @@ function showPause() {
     element("drag-hint").hidden = true;
   } else {
     element("resume-instructions").textContent = startupHint
-      ? "Click the world to look around. WASD moves; Space jumps."
-      : "Click the world to capture your mouse. Esc releases it.";
+      ? "Click or press Enter to explore. WASD moves; H opens controls."
+      : "Enter resumes. Esc pauses; H opens controls; Tab selects settings.";
     element("resume-button").textContent = pointerUnavailable
       ? "Continue with drag to look ↗"
       : startupHint
@@ -668,6 +668,38 @@ function pauseExploration() {
 function jumpPlayer() {
   if (!explorationActive() || flight) return;
   jumpAssist.press(navigationElapsed);
+}
+
+function openControls() {
+  pauseExploration();
+  help.showModal();
+  updateAudio();
+}
+
+// Use the same camera limits as mouse/touch orbiting, in the camera's own up frame.
+const orbitOffset = new THREE.Vector3();
+const orbitUpRotation = new THREE.Quaternion();
+const orbitSpherical = new THREE.Spherical();
+const worldUp = new THREE.Vector3(0, 1, 0);
+function updateKeyboardCamera(dt: number) {
+  const horizontal = Number(keys.has("KeyL")) - Number(keys.has("KeyJ"));
+  const vertical = Number(keys.has("KeyI")) - Number(keys.has("KeyK"));
+  if (view === "explore") {
+    if (explorationActive()) flightAssist.look(horizontal * dt * 1.4, vertical * dt * 1.4);
+    return;
+  }
+  const yaw = Number(keys.has("ArrowRight") || keys.has("KeyD")) - Number(keys.has("ArrowLeft") || keys.has("KeyA"));
+  const pitch = Number(keys.has("ArrowDown") || keys.has("KeyS")) - Number(keys.has("ArrowUp") || keys.has("KeyW"));
+  const zoom = Number(keys.has("Minus") || keys.has("NumpadSubtract")) - Number(keys.has("Equal") || keys.has("NumpadAdd"));
+  if (!(yaw || pitch || zoom)) return;
+  orbitUpRotation.setFromUnitVectors(camera.up, worldUp);
+  orbitOffset.copy(camera.position).sub(controls.target).applyQuaternion(orbitUpRotation);
+  orbitSpherical.setFromVector3(orbitOffset);
+  orbitSpherical.theta -= yaw * dt;
+  orbitSpherical.phi = THREE.MathUtils.clamp(orbitSpherical.phi + pitch * dt, 0.05, Math.PI - 0.05);
+  orbitSpherical.radius = THREE.MathUtils.clamp(orbitSpherical.radius * Math.exp(zoom * dt), controls.minDistance, controls.maxDistance);
+  orbitOffset.setFromSpherical(orbitSpherical).applyQuaternion(orbitUpRotation.invert());
+  camera.position.copy(controls.target).add(orbitOffset);
 }
 
 function performJump() {
@@ -1183,20 +1215,16 @@ element("clear-button").addEventListener("click", () => {
 });
 element<HTMLSelectElement>("time-scale").addEventListener("change", (event) => {
   setTimeRate(Number((event.target as HTMLSelectElement).value));
-  (event.target as HTMLSelectElement).blur();
 });
 ghostToggle.addEventListener("change", refreshGhost);
-element("help-button").addEventListener("click", () => {
-  cancelCharge();
-  document.exitPointerLock?.();
-  clearNavigationInputs();
-  help.showModal();
-  updateAudio();
-  if (touch.enabled) touchResumed = false;
-  touch.setActive(false);
-});
+element("help-button").addEventListener("click", openControls);
 element("close-help").addEventListener("click", () => help.close());
-help.addEventListener("close", showPause);
+help.addEventListener("close", () => {
+  showPause();
+  // Do not leave keyboard focus on an inert modal control after closing it.
+  if (view === "explore") element("resume-button").focus({ preventScroll: true });
+  else canvas.focus({ preventScroll: true });
+});
 document.addEventListener("pointerlockchange", () => {
   cancelCharge();
   clearNavigationInputs();
@@ -1267,14 +1295,43 @@ document.addEventListener("mousemove", (event) => {
   flightAssist.look(event.movementX * 0.0022 * preferences.mouseSensitivity, -event.movementY * 0.0022 * preferences.mouseSensitivity);
 });
 document.addEventListener("keydown", (event) => {
-  if (help.open || event.ctrlKey || event.metaKey || event.altKey) return;
+  if (event.ctrlKey || event.metaKey || event.altKey || landscapeBlocked) return;
+  const target = event.target as HTMLElement | null;
+  const editing = !!target?.closest("input, select, textarea, [contenteditable='true']");
+  if (event.code === "KeyH" && !editing) {
+    event.preventDefault();
+    if (!event.repeat) {
+      if (help.open) help.close();
+      else openControls();
+    }
+    return;
+  }
+  if (help.open) return;
+  if (event.code === "Escape" && target?.closest("input, select, textarea, button, a, [contenteditable='true']")) {
+    event.preventDefault();
+    clearNavigationInputs();
+    canvas.focus({ preventScroll: true });
+    return;
+  }
+  if (editing) return;
+  if (event.code === "Tab" && explorationActive()) {
+    event.preventDefault();
+    pauseExploration();
+    element("help-button").focus({ preventScroll: true });
+    return;
+  }
+  // Preserve native keyboard activation and navigation of links and buttons.
+  if (target?.closest("button, a")) return;
+  if (event.code === "Enter" && view === "explore" && !explorationActive()) {
+    event.preventDefault();
+    if (!event.repeat) void captureMouse();
+    return;
+  }
   if (event.code === "KeyO") {
     event.preventDefault();
     if (!event.repeat) toggleOrbitView();
     return;
   }
-  const tag = (event.target as HTMLElement)?.tagName;
-  if (tag === "INPUT" || tag === "SELECT" || tag === "BUTTON") return;
   if (event.code === "KeyM") {
     if (!event.repeat) toggleSound();
     return;
@@ -1285,7 +1342,7 @@ document.addEventListener("keydown", (event) => {
   }
   if (["Comma", "Period"].includes(event.code)) {
     event.preventDefault();
-    stepTimeRate(event.code === "Period" ? 1 : -1);
+    if (!event.repeat) stepTimeRate(event.code === "Period" ? 1 : -1);
     return;
   }
   if (
@@ -1295,6 +1352,24 @@ document.addEventListener("keydown", (event) => {
   ) {
     cancelCharge();
     clearProbes();
+    return;
+  }
+  if (event.code === "KeyG") {
+    if (!event.repeat) {
+      ghostToggle.checked = !ghostToggle.checked;
+      refreshGhost();
+    }
+    return;
+  }
+  if (view === "orbit") {
+    if (event.code === "KeyN") {
+      event.preventDefault();
+      clearNavigationInputs();
+      element("orbit-destination").focus({ preventScroll: true });
+    } else if (["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Equal", "Minus", "NumpadAdd", "NumpadSubtract"].includes(event.code)) {
+      event.preventDefault();
+      keys.add(event.code);
+    }
     return;
   }
   if (view !== "explore") return;
@@ -1340,7 +1415,10 @@ document.addEventListener("visibilitychange", () => {
   updateAudio();
 });
 window.addEventListener("pagehide", () => audio.reset());
-if (import.meta.hot) import.meta.hot.dispose(() => audio.dispose());
+if (import.meta.hot) import.meta.hot.dispose(() => {
+  audio.dispose();
+  benchmark?.dispose();
+});
 window.addEventListener("resize", () => {
   applyRenderBudget();
   touch.reset();
@@ -1405,16 +1483,24 @@ function updateTelemetry() {
   marker.setAttribute("cy", String(40 + 29 * Math.sin(angle)));
 }
 
+const benchmark = buildBenchmark({
+  renderer,
+  canvas,
+  getQuality: () => ({ preset: preferences.graphicsQuality, shadows: renderBudget.shadows, pixelRatio: renderer.getPixelRatio(), view, simulationRate }),
+  onStart: () => { void captureMouse(); },
+});
 let previous = performance.now();
 let telemetryClock = 0;
 function frame(now: number) {
   requestAnimationFrame(frame);
-  const dt = Math.min((now - previous) / 1000, 0.1);
+  // A queued first frame can predate initialization or a visibility reset.
+  const dt = Math.max(0, Math.min((now - previous) / 1000, 0.1));
   previous = now;
   if (document.hidden || landscapeBlocked) {
     updateAudio();
     return;
   }
+  benchmark?.beginFrame(now);
   const active = explorationActive();
   if (resetHeldAt !== null && active && keys.has("KeyR") && now - resetHeldAt >= 600) {
     resetHeldAt = null;
@@ -1438,6 +1524,7 @@ function frame(now: number) {
   } else {
     fixedAccumulator = 0;
   }
+  if (!help.open) updateKeyboardCamera(dt);
   if (view === "explore") updateCamera();
   else controls.update(dt);
   document.body.classList.toggle(
@@ -1548,6 +1635,7 @@ function frame(now: number) {
     renderer.clearDepth();
     renderer.render(avatar.scene, avatar.camera);
   }
+  benchmark?.endFrame(performance.now());
 }
 applyRenderBudget();
 element("mode-description").textContent = movementDescription();

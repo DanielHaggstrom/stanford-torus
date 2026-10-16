@@ -81,24 +81,38 @@ export function buildAxisFacility(parent: THREE.Group, materials: FacilityMateri
   corridors.push(tube(new THREE.Vector3(0, -30, 0), new THREE.Vector3(0, -158, 0), 5));
   for (const [x, z] of [[-21, 0], [20, 0], [0, -20], [0, 20]]) {
     corridors.push(tube(new THREE.Vector3(0, -103, 0), new THREE.Vector3(x, -103, z), 3.2));
-    trusses.push(tube(new THREE.Vector3(0, -85, 0), new THREE.Vector3(x, -98, z), 0.36));
+    trusses.push(tube(new THREE.Vector3(0, -85, 0), new THREE.Vector3(x, -105, z), 0.36));
     trusses.push(tube(new THREE.Vector3(0, -139, 0), new THREE.Vector3(x, -122, z), 0.36));
   }
   for (let window = 0; window < 12; window++) {
-    const angle = window / 12 * Math.PI * 2;
+    // Centre each porthole on a flat hull facet, not on its projecting vertex.
+    const angle = (window + 0.25) / 12 * Math.PI * 2;
     const rotation = new THREE.Quaternion().setFromAxisAngle(Y, angle);
-    windows.push(part(new THREE.Vector3(Math.sin(angle) * 14.07, -57, Math.cos(angle) * 14.07),
+    const surface = 14 * Math.cos(Math.PI / 24) + 0.08;
+    windows.push(part(new THREE.Vector3(Math.sin(angle) * surface, -57, Math.cos(angle) * surface),
       new THREE.Vector3(1.6, 2.7, 0.18), rotation));
   }
   for (const side of [-1, 1]) {
-    for (const y of [-51, -69, -95]) {
-      equipment.push(part(new THREE.Vector3(side * 11.5, y, 10), new THREE.Vector3(3.3, 5, 3)));
-      fixtures.push(part(new THREE.Vector3(side * 13.2, y + 2, 11.6), new THREE.Vector3(0.3, 0.8, 0.25)));
+    for (const y of [-54, -69, -98]) {
+      const radius = y === -98 ? 10 : 14;
+      const width = radius === 10 ? 2.3 : 3.3;
+      const angle = side * 7 / 24 * Math.PI;
+      const rotation = new THREE.Quaternion().setFromAxisAngle(Y, angle);
+      const surface = radius * Math.cos(Math.PI / 24) + 1.475;
+      const frame = new THREE.Matrix4().compose(
+        new THREE.Vector3(Math.sin(angle) * surface, y, Math.cos(angle) * surface), rotation, new THREE.Vector3(1, 1, 1),
+      );
+      equipment.push({ matrix: frame.clone().multiply(new THREE.Matrix4().makeScale(width, 5, 3)) });
+      const lamp = part(new THREE.Vector3(width / 2 - 0.3, 2, 1.6), new THREE.Vector3(0.3, 0.8, 0.25));
+      fixtures.push({ matrix: frame.clone().multiply(lamp.matrix) });
     }
     const mastEnd = new THREE.Vector3(side * 19, -178, 9);
-    trusses.push(tube(new THREE.Vector3(side * 7, -147, 5), mastEnd, 0.17));
-    trusses.push(tube(new THREE.Vector3(side * 16.5, -173, 9), new THREE.Vector3(side * 21.5, -173, 9), 0.1));
-    trusses.push(tube(new THREE.Vector3(side * 17, -170, 9), new THREE.Vector3(side * 21, -170, 9), 0.1));
+    const mastStart = new THREE.Vector3(side * 6, -147, 4);
+    trusses.push(tube(mastStart, mastEnd, 0.17));
+    for (const fraction of [0.74, 0.87]) {
+      const center = mastStart.clone().lerp(mastEnd, fraction);
+      trusses.push(tube(center.clone().add(new THREE.Vector3(-2.5, 0, 0)), center.clone().add(new THREE.Vector3(2.5, 0, 0)), 0.1));
+    }
     fixtures.push(part(mastEnd, new THREE.Vector3(0.4, 0.6, 0.4)));
   }
 
@@ -111,10 +125,10 @@ export function buildAxisFacility(parent: THREE.Group, materials: FacilityMateri
   const closedLock = (center: THREE.Vector3, direction: THREE.Vector3, radius: number, length: number, dock = false) => {
     const rotation = new THREE.Quaternion().setFromUnitVectors(Y, direction);
     (dock ? docking : chambers).push(part(center, new THREE.Vector3(radius, length, radius), rotation));
-    const outside = center.clone().addScaledVector(direction, length / 2 + 0.16);
+    const outside = center.clone().addScaledVector(direction, length / 2 + 0.1);
     const torusRotation = new THREE.Quaternion().setFromUnitVectors(Z, direction);
     for (const offset of [-length / 2 + 0.3, length / 2 - 0.1]) flanges.push(part(
-      center.clone().addScaledVector(direction, offset), new THREE.Vector3(radius + 0.2, radius + 0.2, radius + 0.2), torusRotation,
+      center.clone().addScaledVector(direction, offset), new THREE.Vector3(radius + 0.16, radius + 0.16, radius + 0.16), torusRotation,
     ));
     hatches.push(part(outside, new THREE.Vector3(radius * 0.84, 0.22, radius * 0.84), rotation));
     const door = new THREE.Matrix4().compose(outside, rotation, new THREE.Vector3(1, 1, 1));
@@ -125,8 +139,8 @@ export function buildAxisFacility(parent: THREE.Group, materials: FacilityMateri
     latches.push(doorPart(0, 0, radius * 1.25, 0.22));
     latches.push(doorPart(0, 0, 0.22, radius * 1.25));
     for (const sign of [-1, 1]) {
-      warnings.push(doorPart(sign * radius * 0.8, 0, 0.22, radius * 0.65));
-      const local = part(new THREE.Vector3(sign * radius * 0.66, 0.19, radius * 0.48), new THREE.Vector3(0.26, 0.15, 0.36));
+      warnings.push(doorPart(sign * radius * 0.7, 0, 0.22, radius * 0.55));
+      const local = part(new THREE.Vector3(sign * radius * 0.58, 0.18, radius * 0.4), new THREE.Vector3(0.26, 0.15, 0.36));
       fixtures.push({ matrix: door.clone().multiply(local.matrix) });
     }
   };

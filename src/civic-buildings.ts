@@ -101,6 +101,11 @@ export function createCivicParts(): CivicPart[] {
       // Swept canopy blades make the entrance distinct without extra meshes.
       box("trim", -3.5, 0.1, 3.55, 4.0, 0.15, 1.3, "#c1d3cb", true, "canopy", 0.18);
       box("trim", 3.65, 0.45, 4.1, 4.1, 0.15, 1.55, "#c1d3cb", true, "canopy", -0.14);
+      // Slim supports meet both the canopy blades and the wing/core below.
+      box("trim", -4.8, 0.6, 3.16, 0.12, 0.32, 0.22, "#718e8a", true, "canopy bracket");
+      box("trim", -2.2, 0.6, 3.41, 0.12, 0.74, 0.22, "#718e8a", true, "canopy bracket");
+      box("trim", 2.0, 1.0, 3.685, 0.12, 1.29, 0.22, "#718e8a", true, "canopy bracket");
+      box("trim", 5.0, 1.4, 3.85, 0.16, 0.2, 0.9, "#718e8a", true, "canopy bracket");
       box("trim", 0, -0.25, 3.18, 5.5, 0.18, 1.25, "#87aaa5", true, "portico");
       // A shut glazed vestibule, with a frame and a fine central door seam.
       box("glass", 0, -0.12, 1.4, 2.8, 2.8, 0.12, undefined, true, "closed door");
@@ -110,11 +115,11 @@ export function createCivicParts(): CivicPart[] {
       box("marking", 1.85, -0.04, 2.25, 0.2, 0.065, 0.04, "#a9e1d2", false);
       // Small roof instruments and recessed skylights complete the silhouette.
       for (const x of [-1.25, 2.8]) {
-        box("trim", x, 3.0, 7.48, 2.4, 0.3, 1.9, "#76928e", true, "skylight frame");
-        box("glass", x, 3.0, 7.67, 2.1, 0.08, 1.65);
+        box("trim", x, 3.0, 7.46, 2.4, 0.3, 1.9, "#76928e", true, "skylight frame");
+        box("glass", x, 3.0, 7.65, 2.1, 0.08, 1.65);
       }
       for (const x of [-5.1, 5.3]) {
-        const roofHeight = x < 0 ? 3.1 : 3.9;
+        const roofHeight = x < 0 ? 3.08 : 3.9;
         box("trim", x, 6.0, roofHeight + 0.4, 0.85, 0.8, 0.85, "#a7bcb2", true, "vent");
         for (let slat = 0; slat < 3; slat++) {
           box("glass", x, 5.56, roofHeight + 0.18 + slat * 0.16, 0.63, 0.065, 0.035);

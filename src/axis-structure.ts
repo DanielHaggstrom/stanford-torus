@@ -21,7 +21,7 @@ const WING_SPAN = 76;
 const WING_WIDTH = 28;
 const WING_CENTER_X = 50;
 const WING_ROWS = [70, 108, 146, 184, 222, 260, 298, 336, 374, 412];
-const SPINE_START = 32;
+const SPINE_START = 28.5;
 const SPINE_END = 444;
 const SPINE_BAYS = 36;
 
@@ -150,7 +150,7 @@ export function buildAxisStructure(parent: THREE.Group, materials: AxisMaterials
     return object;
   };
 
-  const core = mesh(new THREE.CylinderGeometry(10.9, 10.9, 47, 24), materials.hub, "Stationary bearing hub");
+  const core = mesh(new THREE.CylinderGeometry(11.3, 11.3, 49.2, 24), materials.hub, "Stationary bearing hub");
   core.userData.component = "axis";
   const longerons: Part[] = [];
   const braces: Part[] = [];
@@ -172,11 +172,16 @@ export function buildAxisStructure(parent: THREE.Group, materials: AxisMaterials
       braces.push(strut(new THREE.Vector3(x, y, z), new THREE.Vector3(nextX, nextY, nextZ), 0.13));
       if (bay % 3 === 0) joints.push(box(x, y, z, 0.8, 0.8, 0.8));
     }
+    const nextX = corner === 0 || corner === 3 ? -x : x;
+    const nextZ = corner === 0 || corner === 3 ? z : -z;
+    braces.push(strut(new THREE.Vector3(x, SPINE_END, z), new THREE.Vector3(nextX, SPINE_END, nextZ), 0.18));
+    braces.push(strut(new THREE.Vector3(x, SPINE_END, z), new THREE.Vector3(0, SPINE_END, 0), 0.18));
   }
   const manifold = mesh(new THREE.CylinderGeometry(3.2, 3.2, 3, 16), materials.structure, "Closed array thermal manifold");
   manifold.position.y = SPINE_END;
   for (const y of WING_ROWS) {
-    longerons.push(strut(new THREE.Vector3(-WING_CENTER_X, y, 0), new THREE.Vector3(WING_CENTER_X, y, 0), 0.6));
+    // The torque shaft fits between the two skins throughout hinge rotation.
+    longerons.push(strut(new THREE.Vector3(-WING_CENTER_X, y, 0), new THREE.Vector3(WING_CENTER_X, y, 0), 0.16));
     for (const side of [-1, 1]) {
       braces.push(strut(new THREE.Vector3(side * 4.6, y - 6, 4.6), new THREE.Vector3(side * 12, y, 0), 0.23));
       braces.push(strut(new THREE.Vector3(side * 4.6, y + 6, -4.6), new THREE.Vector3(side * 12, y, 0), 0.23));
@@ -197,7 +202,7 @@ export function buildAxisStructure(parent: THREE.Group, materials: AxisMaterials
       const rotation = new THREE.Quaternion().setFromUnitVectors(Z, new THREE.Vector3(arm * 0.8, 0, 0.6));
       dishParts.push({ matrix: new THREE.Matrix4().compose(position, rotation, new THREE.Vector3(1, 1, 1)) });
       const toWorld = (point: THREE.Vector3) => point.applyQuaternion(rotation).add(position);
-      dishSupportParts.push(strut(new THREE.Vector3(arm * 10, y + 3, 0), position, 0.38));
+      dishSupportParts.push(strut(new THREE.Vector3(arm * 6, y - 6, 0), position, 0.38));
       for (let support = 0; support < 3; support++) {
         const angle = support / 3 * Math.PI * 2;
         dishSupportParts.push(strut(toWorld(new THREE.Vector3(3.2 * Math.cos(angle), 3.2 * Math.sin(angle), 1.05)), toWorld(new THREE.Vector3(0, 0, 2.7)), 0.09));
