@@ -144,7 +144,7 @@ test("the first surface wins: scenery before deck, deck before distant scenery",
   const emptyLane = motion({ x: 202, y: 0, z: 0 }, { x: 8, y: 0, z: 0 });
   assert.equal(world.firstImpact(emptyLane, 3)?.kind, "floor");
   const side = motion({ x: 195, y: 20, z: 0 }, { x: 0, y: 10, z: 0 });
-  assert.equal(world.firstImpact(side, 3)?.kind, "side");
+  assert.equal(world.firstImpact(side, 3)?.kind, "enclosure");
 });
 
 test("a courtyard remains open between individual building components", () => {

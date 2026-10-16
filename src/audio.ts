@@ -39,6 +39,7 @@ export interface GameAudio {
 }
 
 type Source = OscillatorNode | AudioBufferSourceNode;
+const TRAM_VOLUME = 0.6;
 type TramVoice = {
   direction: TramDirection;
   index: number;
@@ -298,7 +299,7 @@ export function buildAudio(): GameAudio {
         const speed = Math.min(1, state.speed / 19.2);
         const braking = phase === "braking" ? 1 - speed * 0.7 : 0;
         automate(voice.pan.pan, spatial.pan);
-        automate(voice.distance.gain, spatial.gain);
+        automate(voice.distance.gain, spatial.gain * TRAM_VOLUME);
         automate(voice.motor.frequency, 65 + speed * (phase === "braking" ? 235 : 310));
         automate(voice.motorGain.gain, state.stopped ? 0 : (0.045 + speed * 0.055));
         automate(voice.brake.frequency, 900 + speed * 1000);
@@ -306,8 +307,8 @@ export function buildAudio(): GameAudio {
         if (spatial.gain > 0.015 && tramArrived(previousSeconds,
           frame.simSeconds, expectedDelta, voice.direction)) {
           // One quiet two-part arrival bell, localized at the actual cart.
-          tone(660, 660, 0.085 * spatial.gain, 0.36, "sine", spatial.pan);
-          tone(880, 880, 0.055 * spatial.gain, 0.4, "sine", spatial.pan, 0.11);
+          tone(660, 660, 0.085 * spatial.gain * TRAM_VOLUME, 0.36, "sine", spatial.pan);
+          tone(880, 880, 0.055 * spatial.gain * TRAM_VOLUME, 0.4, "sine", spatial.pan, 0.11);
         }
       }
       const footsteps = advanceFootsteps(footPhase, frame.deltaSeconds,

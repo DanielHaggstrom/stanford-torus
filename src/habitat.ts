@@ -1220,7 +1220,7 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
     guard.position.y = side * 21.75;
   }
 
-  buildHabitatStructure(root, materials);
+  const structure = buildHabitatStructure(root, materials);
 
   const trams = buildTramSystem(root, HABITAT_DISTRICTS);
   trams.update(0);
@@ -1231,6 +1231,7 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
     update(elapsedSeconds, lighting) {
       if (disposed) return;
       trams.update(elapsedSeconds);
+      structure.update(elapsedSeconds);
       if (lighting) {
         const daylight = THREE.MathUtils.clamp(lighting.sunlight, 0, 1);
         sunLight.position

@@ -1,7 +1,6 @@
 import {
   ANGULAR_SPEED,
   FLOOR_RADIUS,
-  firstHabitatImpact,
   floorNormal,
   rotatingAcceleration,
   stepFreeFlight,
@@ -10,6 +9,7 @@ import {
   type MotionState,
   type Vec3,
 } from "./physics.ts";
+import { firstEnclosureImpact, type EnclosureImpact } from "./enclosure-collision.ts";
 
 /** The same local bounds and transforms used to draw a piece of scenery. */
 export interface StaticCollider {
@@ -20,7 +20,7 @@ export interface StaticCollider {
 }
 
 export interface SceneryImpact extends Omit<Impact, "kind"> {
-  kind: Impact["kind"] | "scenery";
+  kind: Impact["kind"] | EnclosureImpact["kind"] | "scenery";
   collider?: StaticCollider;
 }
 
@@ -332,7 +332,7 @@ export function buildSceneryCollision(colliders: readonly StaticCollider[]) {
 
   function firstImpact(state: MotionState, duration: number, options: HabitatBounds = {}): SceneryImpact | null {
     if (!(duration >= 0) || !Number.isFinite(duration)) throw new RangeError("Collision duration must be finite and nonnegative.");
-    const boundsImpact = firstHabitatImpact(state, duration, options);
+    const boundsImpact = firstEnclosureImpact(state, duration, options);
     const limit = boundsImpact?.time ?? duration;
     const angularSpeed = options.angularSpeed ?? ANGULAR_SPEED;
     let time = 0;

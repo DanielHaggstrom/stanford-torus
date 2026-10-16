@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { FLOOR_RADIUS } from "./physics.ts";
-import { ENCLOSURE_HEIGHT, ENCLOSURE_HALF_WIDTH } from "./habitat-volume.ts";
+import { ENCLOSURE_HEIGHT, ENCLOSURE_HALF_WIDTH, ENCLOSURE_HULL_DEPTH } from "./habitat-volume.ts";
+import { buildAxisStructure } from "./axis-structure.ts";
 
 type StructureMaterials = {
   structure: THREE.Material;
@@ -18,7 +19,7 @@ const Y = new THREE.Vector3(0, 1, 0);
 export function buildHabitatStructure(
   root: THREE.Group,
   materials: StructureMaterials,
-): void {
+): { update: (elapsedSeconds: number) => void } {
   const mesh = (geometry: THREE.BufferGeometry, material: THREE.Material) => {
     const object = new THREE.Mesh(geometry, material);
     root.add(object);
@@ -60,7 +61,7 @@ export function buildHabitatStructure(
     return object;
   };
   const archPoint = (angle: number, t: number, hull = false) => {
-    const radius = FLOOR_RADIUS + (hull ? 3.2 : -ENCLOSURE_HEIGHT) * Math.sin(t);
+    const radius = FLOOR_RADIUS + (hull ? ENCLOSURE_HULL_DEPTH : -ENCLOSURE_HEIGHT) * Math.sin(t);
     return new THREE.Vector3(
       radius * Math.cos(angle),
       -ENCLOSURE_HALF_WIDTH * Math.cos(t),
@@ -202,60 +203,13 @@ export function buildHabitatStructure(
   instances(cylinder, materials.hub, passages).name = "Spoke transit passages";
   instances(cube, materials.cyan, guideLights).name = "Pressure-wall marker lights";
 
-  mesh(new THREE.CylinderGeometry(11, 11, 47, 24), materials.hub).name = "Axial hub";
-  mesh(new THREE.CylinderGeometry(14, 14, 12, 24), materials.glass);
-  for (const y of [-24, -7, 7, 24])
-    ring(Math.abs(y) === 24 ? 11.8 : 14.3, 0.4, y, materials.structure);
-  const hubDetail: Part[] = [];
-  const darkPorts: Part[] = [];
-  const radiatorPanels: Part[] = [];
-  for (let panel = 0; panel < 24; panel++) {
-    const angle = panel / 24 * TAU;
-    const radial = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
-    hubDetail.push({ matrix: strut(
-      radial.clone().multiplyScalar(14.1).setY(-6),
-      radial.clone().multiplyScalar(14.1).setY(6), 0.15,
-    ) });
-    if (panel % 3 === 0) {
-      for (const side of [-1, 1]) {
-        hubDetail.push({ matrix: box(
-          radial.clone().multiplyScalar(11.15).setY(side * 16),
-          new THREE.Vector3(0.55, 6.3, 0.55), angle,
-        ) });
-      }
-    }
+  // These bearing collars and the spoke mounts belong to the rotating ring.
+  // The service spine inside them has a separate attitude and panel drive.
+  for (const y of [-24, 24]) {
+    ring(11.8, 0.65, y, materials.structure);
+    ring(11.25, 0.14, y - Math.sign(y) * 0.85, materials.cyan);
   }
-  for (const side of [-1, 1]) {
-    const shoulder = mesh(new THREE.CylinderGeometry(side > 0 ? 4.5 : 10.9, side > 0 ? 10.9 : 4.5, 5, 24), materials.hub);
-    shoulder.position.y = side * 26;
-    const neck = mesh(new THREE.CylinderGeometry(4.5, 4.5, 7, 20), materials.structure);
-    neck.position.y = side * 32;
-    for (const y of [29, 34.5, 36]) ring(4.8, 0.22, side * y, materials.hub);
-    const port = mesh(new THREE.CylinderGeometry(3.9, 3.9, 0.18, 20), materials.glass);
-    port.position.y = side * 36.2;
-    ring(4.2, 0.1, side * 36.4, materials.cyan);
-    // Small paired thermal radiators on the hub, clear of the habitat floor.
-    for (const wing of [-1, 1]) {
-      const center = new THREE.Vector3(wing * 18, side * 30, 0);
-      radiatorPanels.push({ matrix: box(center, new THREE.Vector3(18, 0.2, 9)) });
-      hubDetail.push({ matrix: strut(new THREE.Vector3(wing * 4, side * 30, 0), center, 0.24) });
-      for (let seam = -3; seam <= 3; seam++)
-        hubDetail.push({ matrix: box(
-          new THREE.Vector3(wing * 18, side * 30.15, seam * 1.2),
-          new THREE.Vector3(18, 0.06, 0.06),
-        ) });
-    }
-    // Recessed service hatches add scale to otherwise blank hub barrel sections.
-    for (let hatch = 0; hatch < 6; hatch++) {
-      const angle = hatch / 6 * TAU;
-      darkPorts.push({ matrix: box(
-        new THREE.Vector3(Math.cos(angle) * 11, side * 14, Math.sin(angle) * 11),
-        new THREE.Vector3(1.4, 2.5, 0.15), angle - Math.PI / 2,
-      ) });
-    }
-  }
-  instances(cube, materials.structure, hubDetail).name = "Hub framing and radiator fins";
-  instances(cube, materials.glass, darkPorts).name = "Hub service hatches";
-  instances(cube, materials.trim, radiatorPanels).name = "Thermal radiators";
-  root.userData.structureVersion = 2;
+  const axis = buildAxisStructure(root, materials);
+  root.userData.structureVersion = 3;
+  return axis;
 }

@@ -6,7 +6,6 @@ import {
   FLOOR_RADIUS,
   GRAVITY,
   floorNormal,
-  resolveHabitatCollision,
   stepFreeFlight,
 } from "./physics";
 import type { MotionState } from "./physics";
@@ -15,6 +14,8 @@ import { buildAvatar } from "./avatar";
 import { buildAudio } from "./audio";
 import { buildSceneryCollision } from "./scenery-collision";
 import { isInsideHabitat } from "./habitat-volume";
+import { resolvePlayerDeck, isOverDeck } from "./player-boundaries";
+import { AXIS_SUNLIGHT_THRESHOLD } from "./axis-tracking";
 import { updateMotionRamp, walkSpeed, flightSpeed } from "./movement";
 import {
   CHARGE_DELAY_SECONDS,
@@ -566,7 +567,7 @@ function showPause() {
     "aria-label",
     resumed ? "Pause exploration" : "Resume exploration",
   );
-  element("orbit-view-hint").querySelector("small")!.textContent = touch.enabled
+  element("orbit-camera-hint").textContent = touch.enabled
     ? "Drag to inspect · Pinch to zoom"
     : "Drag to inspect · Scroll to zoom";
   if (touch.enabled) {
@@ -761,20 +762,16 @@ function currentShot(speed = effectiveLaunchSpeed()): MotionState {
     .addScaledVector(direction, 0.65)
     .addScaledVector(right, 0.25)
     .addScaledVector(up, -0.2);
-  const originRadius = Math.hypot(origin.x, origin.z);
-  if (originRadius > FLOOR_RADIUS - 0.1) {
-    origin.x *= (FLOOR_RADIUS - 0.1) / originRadius;
-    origin.z *= (FLOOR_RADIUS - 0.1) / originRadius;
-  }
-  // Avoid starting beyond the side wall when aiming outwards near an edge.
-  origin.y = THREE.MathUtils.clamp(origin.y, -21.9, 21.9);
   // A protruding launcher must not spawn its probe through a nearby thin wall.
   const muzzleContact = scenery.firstImpact({
     position: camera.position,
     velocity: origin.clone().sub(camera.position),
   }, 1, { angularSpeed: 0 });
-  if (muzzleContact)
-    origin.copy(muzzleContact.position).addScaledVector(muzzleContact.normal, 0.01);
+  if (muzzleContact) {
+    const towardEye = camera.position.clone().sub(origin);
+    const side = towardEye.dot(muzzleContact.normal) >= 0 ? 1 : -1;
+    origin.copy(muzzleContact.position).addScaledVector(muzzleContact.normal, side * 0.01);
+  }
   const initialVelocity = direction
     .clone()
     .multiplyScalar(speed)
@@ -832,12 +829,15 @@ function refreshGhost() {
     ? `${impact.time.toFixed(1)} s to contact`
     : "> 30 s";
   if (impact) {
+    const contactNormal = new THREE.Vector3().copy(impact.normal);
+    if (contactNormal.dot(stepFreeFlight(shot, impact.time).velocity) > 0)
+      contactNormal.negate();
     impactMarker.position
       .copy(impact.position)
-      .addScaledVector(impact.normal, 0.07);
+      .addScaledVector(contactNormal, 0.07);
     impactMarker.quaternion.setFromUnitVectors(
       new THREE.Vector3(0, 0, 1),
-      new THREE.Vector3().copy(impact.normal),
+      contactNormal,
     );
     impactMarker.visible = true;
   }
@@ -941,10 +941,7 @@ function simulatePlayer(dt: number, simTime: number) {
       position.x *= 6 / Math.max(rho, 0.001);
       position.z *= 6 / Math.max(rho, 0.001);
     }
-    const collision = resolveHabitatCollision(
-      { position, velocity },
-      { halfWidth: 21.5 },
-    );
+    const collision = resolvePlayerDeck({ position, velocity });
     player = collision.state;
     grounded = collision.hitFloor;
   } else if (grounded) {
@@ -973,10 +970,7 @@ function simulatePlayer(dt: number, simTime: number) {
     }
     if (tramSupport)
       velocity.add(tramSurfaceVelocity(position, tramSupport, endTime));
-    player = resolveHabitatCollision(
-      { position, velocity },
-      { halfWidth: 21.5 },
-    ).state;
+    player = resolvePlayerDeck({ position, velocity }).state;
   } else {
     // Modest air steering; jumping otherwise shares the probes' free-flight physics.
     const lateralVelocity = velocity
@@ -988,17 +982,17 @@ function simulatePlayer(dt: number, simTime: number) {
         Math.min(0.8 * dt, 1),
       );
     player = stepFreeFlight({ position: player.position, velocity }, dt);
-    const collision = resolveHabitatCollision(player, { halfWidth: 21.5 });
+    const collision = resolvePlayerDeck(player);
     player = collision.state;
     grounded = collision.hitFloor;
   }
-  const contact = resolveTramCollision(
+  const contact = isOverDeck(player) ? resolveTramCollision(
     previousState,
     player,
     simTime,
     endTime,
     tramSupport,
-  );
+  ) : { state: player, support: null, grounded: false, pushed: false };
   player = contact.state;
   tramSupport = flight ? null : contact.support;
   const solidContact = scenery.resolvePlayer(previousState, player, { flying: flight });
@@ -1404,6 +1398,10 @@ function frame(now: number) {
         : orbit.sunlight < 0.99
           ? "PENUMBRA"
           : "SUNLIT";
+    element("axis-state").hidden = view !== "orbit";
+    element("axis-state").textContent = orbit.sunlight <= AXIS_SUNLIGHT_THRESHOLD
+      ? "AXIS HOLD"
+      : "SOLAR TRACKING";
     telemetryClock = 0;
   }
   renderer.clear();

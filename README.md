@@ -7,7 +7,7 @@ probes to see how trajectories curve in a rotating reference frame.
 [Build checks](https://github.com/DanielHaggstrom/stanford-torus/actions) ·
 [MIT license](LICENSE)
 
-**Version 0.6.0** · Keyboard, mouse, or touch · WebGL 2
+**Version 0.7.0** · Keyboard, mouse, or touch · WebGL 2
 
 ## Playing
 
@@ -73,11 +73,12 @@ outside the pressure enclosure, while paused, or in orbit view.
 - Solid buildings, trees, and props; rooftop landings and wall sliding.
 - Rotating-frame ballistics and matching trajectory previews against scenery.
 - Procedural sound, a framed glass enclosure, pressure hull, trusses, and docking hub.
+- An independent central axis with tilting solar/radiator wings and antennae.
 - Earth, Moon, Sun, eclipses, adjustable time, and an inertial exterior view with an orbit map.
 
 This is a stylized prototype. The deck is a cylindrical ring rather than a full
-toroidal surface. Scenery uses simplified collision bounds; the transparent canopy
-still allows flight through it. The sky
+toroidal surface. Scenery uses simplified collision bounds. Probes hit the curved
+enclosure, including its sides; players can fly through it into space. The sky
 uses approximate circular orbits and a fixed opening alignment, not the current
 date. There is no multiplayer, saved progress, or gamepad support yet.
 
@@ -102,6 +103,7 @@ See the [orbital model](docs/orbit.md) for assumptions and equations, and the
 [deployment guide](docs/deployment.md) for hosting and rollback.
 The [touch controls guide](docs/mobile.md) covers mobile input and testing.
 See [sound and collision](docs/sound-and-collision.md) for how those systems work.
+The [axis and panels](docs/axis.md) guide explains Sun tracking and eclipse behavior.
 
 ## Roadmap
 
