@@ -42,7 +42,24 @@ test("walking, looking, jumping and charging use independent fingers", () => {
   input.end(3);
   assert.deepEqual(events.at(-1), "release");
   input.end(1);
-  assert.deepEqual(input.state, { forward: 0, right: 0, vertical: 0, boost: false });
+  assert.deepEqual(input.state, { forward: 0, right: 0, vertical: 0 });
+});
+
+test("two thumbs can move and aim a charged shot without releasing either gesture", () => {
+  const { input, events } = setup();
+  input.begin("move", 1);
+  input.moveStick(1, 0.4, -0.8);
+  const movement = { ...input.state };
+  input.begin("fire", 2);
+  assert.equal(input.moveLook(2, 18, -6), true);
+  assert.equal(input.moveLook(1, 100, 100), false);
+  assert.deepEqual(input.state, movement);
+  assert.deepEqual(events, ["begin", [18, -6]]);
+  assert.equal(input.pointerFor("fire"), 2);
+  input.end(2);
+  assert.deepEqual(events.at(-1), "release");
+  assert.equal(input.moveLook(2, 18, -6), false);
+  assert.deepEqual(input.state, movement);
 });
 
 test("only the owning fire pointer can release a shot and cancelled shots never fire", () => {
@@ -53,6 +70,7 @@ test("only the owning fire pointer can release a shot and cancelled shots never 
   input.end(11);
   assert.deepEqual(events, ["begin"]);
   input.end(10, true);
+  assert.equal(input.moveLook(10, 50, 50), false);
   input.end(10);
   assert.deepEqual(events, ["begin", "cancel"]);
 });
@@ -63,16 +81,12 @@ test("flight rise and descent cancel each other and recover when one finger lift
   input.begin("jump", 1);
   assert.equal(input.state.vertical, 1);
   input.begin("descend", 2);
-  input.begin("boost", 3);
   assert.equal(input.state.vertical, 0);
-  assert.equal(input.state.boost, true);
   input.end(1);
   assert.equal(input.state.vertical, -1);
   input.setFlight(false);
   assert.equal(input.state.vertical, 0);
   assert.deepEqual(events, []);
-  input.end(3, true);
-  assert.equal(input.state.boost, false);
 });
 
 test("pausing or losing focus clears all gestures and cancels charge once", () => {
@@ -82,13 +96,12 @@ test("pausing or losing focus clears all gestures and cancels charge once", () =
   input.begin("move", 1);
   input.moveStick(1, 1, -1);
   input.begin("jump", 2);
-  input.begin("boost", 3);
   input.begin("fire", 4);
   input.reset();
   input.reset();
   input.end(4);
   assert.equal(state, input.state);
-  assert.deepEqual(state, { forward: 0, right: 0, vertical: 0, boost: false });
+  assert.deepEqual(state, { forward: 0, right: 0, vertical: 0 });
   assert.deepEqual(events, ["begin", "cancel"]);
   assert.equal(input.begin("fire", 5), true);
   input.end(5);

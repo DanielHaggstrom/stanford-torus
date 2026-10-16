@@ -12,16 +12,32 @@ an orientation lock. This API has limited browser support, so manual rotation
 remains the fallback. See [MDN's orientation lock documentation](https://developer.mozilla.org/en-US/docs/Web/API/ScreenOrientation/lock).
 
 The left stick provides analog movement; dragging the world changes the view.
-Jump becomes a held Rise button in flight, alongside Down. Fire keeps the same
-real-time tap and charge timing. Systems contains probe controls and Reset.
+Continuing to move builds speed without a Sprint button: walking ramps from
+4 to 10 m/s and flight from 14 to 36 m/s. Jump becomes a held Rise button in
+flight, alongside Down. Fire keeps the same real-time tap and charge timing,
+and dragging the Fire button aims while charging. Two thumbs can move, aim,
+and fire together. Systems contains probe controls, Fullscreen, Reset, and a
+flight-only Precision toggle for close inspection at 1.5–3 m/s.
 Orbit has a Return button and a collapsible map; its camera supports dragging
 and pinching through Three.js OrbitControls.
 
 Each gesture owns its pointer independently. Releasing or cancelling a movement
-or look finger does not release a charged shot. Lost capture ends the affected
+or look finger does not release a charged shot. The Fire finger can also aim;
+another finger cannot release its shot. Lost capture ends the affected
 gesture. Pause, help, view changes, reset, focus loss, hiding the page, and resizing
 clear all held input; cancelled shots do not fire. Touch exploration resumes
 explicitly after losing focus or opening help.
+
+Controls includes separate mouse and touch sensitivity sliders. Input layout,
+graphics, sensitivity, volume, and mute preferences persist in the browser's
+local storage. Storage restrictions fall back to defaults for the current visit.
+
+Flight follows the deck inside the enclosure and smoothly adopts an inertial
+reference outside, including near the hub. The transition takes about one real
+second and preserves position, aim, and momentum. A 750 m exploration sphere
+keeps the player near the habitat; probes disappear when crossing out. These
+rules and jump grace/buffering are shared with desktop. Simulation speeds of
+5× and 10× also accelerate movement; the Time selector returns to 1×.
 
 Automatic graphics caps the drawing pixel ratio at 1 with touch controls.
 Desktop retains its cap of 1.75. Full restores that budget on touch; Balanced
@@ -33,7 +49,8 @@ time, geography, or scenery. No new dependency or server runtime is required.
 ## Validation
 
 Input tests cover analog dead zones, diagonal speed, independent fingers,
-shot ownership, cancellation, flight controls, and clearing held state. Rendering
+two-thumb movement and charged aiming, shot ownership, cancellation, flight
+controls, and clearing held state. Rendering
 budget tests check desktop defaults and explicit overrides.
 
 Browser checks cover 844×390 phone landscape, 390×844 portrait, and 1024×768 tablet

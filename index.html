@@ -66,6 +66,7 @@
       </div>
       <p class="flight-shortcut"><kbd>V</kbd> Toggle flight</p>
       <p id="mode-description">Follow the promenade. Space to jump.</p>
+      <button id="touch-precision" class="touch-only touch-system-button" aria-pressed="false" hidden>Precision flight: off</button>
       <p id="tram-status" class="tram-status" hidden></p>
       <div class="divider"></div>
       <label class="toggle-row" for="ghost-toggle"
@@ -96,7 +97,10 @@
         <span>PROBES <strong id="probe-count">0 / 5</strong></span
         ><button id="clear-button">Clear <kbd>C</kbd></button>
       </div>
-      <button id="reset-button" class="touch-only touch-reset">Reset position</button>
+      <div class="touch-only touch-system-tools">
+        <button id="touch-fullscreen" class="touch-system-button">Fullscreen</button>
+        <button id="reset-button" class="touch-reset">Reset position</button>
+      </div>
     </aside>
     <div id="orbit-view-hint" class="orbit-view-hint" hidden>
       <p class="eyebrow">INERTIAL OBSERVER</p>
@@ -131,15 +135,15 @@
         </div>
       </div>
       <div class="metric">
-        <span>LOCAL GRAVITY</span
+        <span id="gravity-label">LOCAL GRAVITY</span
         ><strong id="gravity-value">1.00 <small>g</small></strong>
       </div>
       <div class="metric">
-        <span>ALTITUDE</span
+        <span id="altitude-label">ALTITUDE</span
         ><strong id="altitude-value">0.0 <small>m</small></strong>
       </div>
       <div class="metric">
-        <span>RELATIVE SPEED</span
+        <span id="speed-label">RELATIVE SPEED</span
         ><strong id="speed-value">0.0 <small>m/s</small></strong>
       </div>
       <div class="ring-map">
@@ -161,7 +165,7 @@
       ><span><kbd>SPACE</kbd> jump / rise</span><span><kbd>F</kbd> charge</span
       ><span><kbd>V</kbd> flight</span
       ><span><kbd>C</kbd> clear</span><span><kbd>, .</kbd> time</span
-      ><span><kbd>O</kbd> orbit view</span><span><kbd>R</kbd> reset</span
+      ><span><kbd>O</kbd> orbit view</span><span><kbd>HOLD R</kbd> reset</span
       ><span><kbd>ESC</kbd> release mouse</span>
     </div>
     <nav id="touch-toolbar" aria-label="Touch game options">
@@ -169,15 +173,13 @@
       <button id="touch-flight" aria-pressed="false">Fly</button>
       <button id="touch-orbit">Orbit</button>
       <button id="touch-pause" aria-label="Pause exploration">Pause</button>
-      <button id="touch-fullscreen">Fullscreen</button>
       <button id="touch-return">Return to habitat</button>
       <button id="touch-map-toggle" aria-controls="orbit-map-panel" aria-expanded="true">Map</button>
     </nav>
     <div id="touch-controls" hidden>
-      <p class="touch-look-hint">Drag the sky to look</p>
+      <p class="touch-look-hint">Drag to look · Fire + drag to aim</p>
       <div class="touch-movement">
-        <button id="touch-boost" aria-label="Hold to move faster">Sprint</button>
-        <div id="touch-stick" role="group" aria-label="Move: drag to walk" tabindex="-1">
+        <div id="touch-stick" role="group" aria-label="Move: drag farther to move faster" tabindex="-1">
           <span class="touch-stick-axis" aria-hidden="true"></span>
           <span id="touch-stick-knob" aria-hidden="true"></span>
         </div>
@@ -188,7 +190,7 @@
           <button id="touch-descend" hidden aria-label="Hold to descend">Down</button>
           <button id="touch-jump" aria-label="Jump, or hold to rise in flight">Jump</button>
         </div>
-        <button id="touch-fire" aria-label="Tap to fire a probe; hold to charge">
+        <button id="touch-fire" aria-label="Tap to fire; hold and drag to charge and aim">
           <span>Fire</span>
           <small id="touch-shot-speed">28 m/s</small>
           <progress id="touch-charge-meter" max="1" value="0" aria-label="Launcher charge"></progress>
@@ -216,19 +218,25 @@
             <option value="balanced">Balanced</option>
           </select>
         </label>
+        <label for="mouse-sensitivity" class="sensitivity-label">Mouse sensitivity <output id="mouse-sensitivity-value" for="mouse-sensitivity">1.0×</output>
+          <input id="mouse-sensitivity" type="range" min="0.3" max="2" step="0.1" value="1" />
+        </label>
+        <label for="touch-sensitivity" class="sensitivity-label">Touch sensitivity <output id="touch-sensitivity-value" for="touch-sensitivity">1.0×</output>
+          <input id="touch-sensitivity" type="range" min="0.3" max="2" step="0.1" value="1" />
+        </label>
         <label for="sound-volume" class="sound-volume-label">Volume <output id="sound-volume-value" for="sound-volume">35%</output>
           <input id="sound-volume" type="range" min="0" max="100" step="5" value="35" />
         </label>
       </div>
       <dl class="touch-help">
         <dt>Move / look</dt>
-        <dd>Drag the left stick to move. Drag the world with your other thumb to look.</dd>
+        <dd>Drag the left stick to move; keep moving to build speed. Drag the world with your other thumb to look.</dd>
         <dt>Jump / fly</dt>
-        <dd>Tap Jump to jump. Choose Fly, then hold Rise or Down to change height. Hold Sprint to move faster.</dd>
+        <dd>Tap Jump to jump. Choose Fly, then hold Rise or Down to change height. Precision flight in Systems slows movement for close inspection.</dd>
         <dt>Fire</dt>
-        <dd>Tap to launch a probe. Hold for 1.2 seconds for full power.</dd>
+        <dd>Tap to launch a probe. Hold and drag Fire to charge and aim with the same thumb. Hold for 1.2 seconds for full power.</dd>
         <dt>Systems</dt>
-        <dd>Clear probes or toggle the ghost trajectory.</dd>
+        <dd>Clear probes, toggle the trajectory, enter fullscreen or reset your position.</dd>
         <dt>Orbit</dt>
         <dd>Drag to inspect; pinch to zoom. Open Map to select a destination and skip forward.</dd>
         <dt>Pause</dt>
@@ -236,23 +244,25 @@
       </dl>
       <dl class="desktop-help">
         <dt>W A S D / Arrow keys</dt>
-        <dd>Move around the habitat</dd>
+        <dd>Move; keep moving to build speed</dd>
         <dt>Mouse / drag</dt>
         <dd>Look around</dd>
         <dt>Space</dt>
         <dd>Jump, or rise in flight</dd>
         <dt>Shift / Q</dt>
-        <dd>Move faster / descend in flight</dd>
+        <dd>Hold for precision flight / descend in flight</dd>
         <dt>V</dt>
         <dd>Toggle walking / powered flight</dd>
         <dt>Hold click / F / launch button</dt>
         <dd>Tap to fire; hold for 1.2 seconds for full power</dd>
         <dt>C</dt>
         <dd>Clear probes. Only the newest five are kept.</dd>
-        <dt>, / . or Time selector</dt>
-        <dd>Simulation speed: 1×, 5×, 10×</dd>
-        <dt>R / Esc</dt>
-        <dd>Reset position / release mouse</dd>
+        <dt>Right click</dt>
+        <dd>Cancel a charged shot</dd>
+        <dt>, / . or Time selector; T</dt>
+        <dd>Simulation speed: 1×, 5×, 10×. T returns to 1×.</dd>
+        <dt>Hold R / Esc</dt>
+        <dd>Hold briefly to reset position / release mouse</dd>
         <dt>O</dt>
         <dd>Toggle inertial orbit view; drag to inspect, scroll to zoom</dd>
         <dt>M / Sound button</dt>
@@ -271,12 +281,14 @@
       <p>
         The dotted path previews the next shot at the speed shown. Charging
         begins after 0.2 seconds; after release, the preview returns to 28 m/s.
-        Gold trails show fired probes. Both use the habitat’s rotating frame.
+        Gold trails show fired probes. Paths follow your current reference frame:
+        curved with the ring inside, straight in inertial space. In space,
+        future contact accounts for the surface rotating before the probe arrives.
       </p>
       <p class="help-small">
         A compact, stylized Stanford torus. Buildings, trees, and solid props
-        block movement and probes. Flight uses a powered, stabilized
-        thruster. The sky follows an approximate circular Earth orbit at 2,000
+        block movement and probes. Flight keeps a deck-relative horizon inside
+        and a steady orientation in space, with automatic braking. The sky follows an approximate circular Earth orbit at 2,000
         km, inclined by 51.6°. Earth, Moon and Sun directions, apparent sizes
         and eclipses share the simulation clock. Charging uses real seconds. Esc
         pauses exploration; switching away from this browser tab pauses the

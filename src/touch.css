@@ -98,16 +98,19 @@ html.touch-input.landscape-blocked #landscape-prompt {
   color: #eef1e6;
   font: inherit;
 }
-.help-preferences .sound-volume-label {
-  grid-column: 1 / -1;
+.help-preferences .sound-volume-label,
+.help-preferences .sensitivity-label {
   position: relative;
 }
-#sound-volume-value {
+.help-preferences .sound-volume-label {
+  grid-column: 1 / -1;
+}
+.help-preferences output {
   position: absolute;
   right: 0;
   font-variant-numeric: tabular-nums;
 }
-#sound-volume {
+.help-preferences input[type="range"] {
   width: 100%;
   height: 32px;
   margin: 0;
@@ -287,7 +290,6 @@ html.touch-input #touch-toolbar button {
 }
 html.touch-input .playing #touch-toolbar button:not(#touch-return):not(#touch-map-toggle),
 html.touch-input .orbiting #touch-return,
-html.touch-input .orbiting #touch-fullscreen,
 html.touch-input .orbiting #touch-map-toggle {
   display: block;
 }
@@ -380,13 +382,6 @@ html.touch-input .touch-stick-label {
   font-size: 7px;
   letter-spacing: 1.4px;
 }
-html.touch-input #touch-boost {
-  position: absolute;
-  bottom: 134px;
-  left: 27px;
-  width: 72px;
-  pointer-events: auto;
-}
 html.touch-input .touch-actions {
   position: absolute;
   right: var(--touch-right);
@@ -400,8 +395,7 @@ html.touch-input .touch-vertical {
   flex-direction: column;
   gap: 9px;
 }
-html.touch-input .touch-actions button,
-html.touch-input #touch-boost {
+html.touch-input .touch-actions button {
   border: 1px solid #e2efd85c;
   border-radius: 12px;
   background: #10202791;
@@ -478,6 +472,12 @@ html.touch-input:not(.systems-open) .flight-panel {
 html.touch-input .flight-panel .panel-top {
   margin-bottom: 14px;
 }
+html.touch-input .flight-panel .mode-switch,
+html.touch-input .flight-panel .launch-button,
+html.touch-input .flight-panel #charge-meter,
+html.touch-input .flight-panel #charge-status {
+  display: none;
+}
 html.touch-input .flight-panel .eyebrow {
   font-size: 9px;
 }
@@ -520,16 +520,30 @@ html.touch-input .flight-panel .probe-tools button {
   font-size: 12px;
   min-width: 60px;
 }
-html.touch-input .touch-reset {
+html.touch-input .touch-system-tools {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 12px;
+}
+html.touch-input .touch-reset,
+html.touch-input .touch-system-button {
   display: block;
   width: 100%;
-  margin-top: 10px;
   padding: 10px;
   border: 1px solid var(--line);
   border-radius: 4px;
   background: transparent;
   color: #d5dece;
   font-size: 12px;
+}
+html.touch-input #touch-precision {
+  margin: 12px 0;
+}
+html.touch-input #touch-precision[aria-pressed="true"] {
+  color: var(--lime);
+  border-color: #d8efac99;
+  background: #283c30e0;
 }
 html.touch-input .flight-panel kbd {
   display: none;
@@ -647,9 +661,6 @@ html.touch-input #fatal-error {
   html.touch-input #touch-toolbar button {
     padding-inline: 11px;
   }
-  html.touch-input #touch-boost {
-    bottom: 130px;
-  }
   html.touch-input .help-preferences {
     grid-template-columns: 1fr;
   }
@@ -675,9 +686,6 @@ html.touch-input #fatal-error {
   }
   html.touch-input .touch-stick-label {
     display: none;
-  }
-  html.touch-input #touch-boost {
-    bottom: 120px;
   }
   html.touch-input .touch-actions {
     bottom: var(--touch-bottom);

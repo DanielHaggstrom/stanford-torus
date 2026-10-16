@@ -1,10 +1,9 @@
-export type TouchAction = "move" | "look" | "fire" | "jump" | "descend" | "boost";
+export type TouchAction = "move" | "look" | "fire" | "jump" | "descend";
 
 export interface TouchMovement {
   forward: number;
   right: number;
   vertical: number;
-  boost: boolean;
 }
 
 export interface TouchInputCallbacks {
@@ -25,7 +24,7 @@ export function joystickVector(x: number, y: number, deadZone = 0.13) {
 
 /** Each gesture owns its pointer until release; unrelated fingers cannot end it. */
 export class TouchInput {
-  readonly state: TouchMovement = { forward: 0, right: 0, vertical: 0, boost: false };
+  readonly state: TouchMovement = { forward: 0, right: 0, vertical: 0 };
   private readonly pointers = new Map<TouchAction, number>();
   private flight = false;
   private readonly callbacks: TouchInputCallbacks;
@@ -54,7 +53,8 @@ export class TouchInput {
   }
 
   moveLook(pointerId: number, dx: number, dy: number): boolean {
-    if (this.pointers.get("look") !== pointerId) return false;
+    // A charging thumb also aims, leaving the other thumb free to move.
+    if (this.pointers.get("look") !== pointerId && this.pointers.get("fire") !== pointerId) return false;
     this.callbacks.look(dx, dy);
     return true;
   }
@@ -83,12 +83,11 @@ export class TouchInput {
   reset(): void {
     const charging = this.pointers.has("fire");
     this.pointers.clear();
-    Object.assign(this.state, { forward: 0, right: 0, vertical: 0, boost: false });
+    Object.assign(this.state, { forward: 0, right: 0, vertical: 0 });
     if (charging) this.callbacks.cancelCharge();
   }
 
   private updateHeldMovement(): void {
-    this.state.boost = this.pointers.has("boost");
     this.state.vertical = this.flight
       ? Number(this.pointers.has("jump")) - Number(this.pointers.has("descend"))
       : 0;

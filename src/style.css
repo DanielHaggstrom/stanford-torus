@@ -751,6 +751,11 @@ dialog .help-small {
   letter-spacing: 1px;
   color: var(--muted);
 }
+.accelerated-time .time-control select {
+  border-color: #f4c889;
+  color: #ffe0ad;
+  box-shadow: 0 0 0 1px #f4c88955;
+}
 .time-control select {
   font: inherit;
   font-size: 12px;

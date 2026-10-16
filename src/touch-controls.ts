@@ -3,6 +3,7 @@ import type { TouchAction, TouchInputCallbacks } from "./touch-input";
 
 export interface TouchCallbacks extends TouchInputCallbacks {
   toggleFlight(): void;
+  togglePrecision(): void;
   toggleOrbit(): void;
   pause(): void;
   enabledChanged(enabled: boolean): void;
@@ -20,6 +21,7 @@ export function buildTouchControls(callbacks: TouchCallbacks) {
   const knob = element("touch-stick-knob");
   const mode = element<HTMLSelectElement>("input-mode");
   const flightButton = element<HTMLButtonElement>("touch-flight");
+  const precisionButton = element<HTMLButtonElement>("touch-precision");
   const descendButton = element<HTMLButtonElement>("touch-descend");
   const jumpButton = element<HTMLButtonElement>("touch-jump");
   const coarse = matchMedia("(pointer: coarse)");
@@ -29,11 +31,10 @@ export function buildTouchControls(callbacks: TouchCallbacks) {
     ["fire", element("touch-fire")],
     ["jump", jumpButton],
     ["descend", descendButton],
-    ["boost", element("touch-boost")],
   ]);
   let enabled = false;
   let active = false;
-  let lookPosition: { x: number; y: number } | null = null;
+  const lookPositions = new Map<number, { x: number; y: number }>();
 
   function centerKnob(): void {
     knob.style.transform = "translate(-50%, -50%)";
@@ -49,7 +50,7 @@ export function buildTouchControls(callbacks: TouchCallbacks) {
 
   function reset(): void {
     input.reset();
-    lookPosition = null;
+    lookPositions.clear();
     centerKnob();
     updateButtons();
     for (const [pointerId, target] of captures) {
@@ -90,7 +91,7 @@ export function buildTouchControls(callbacks: TouchCallbacks) {
     captures.delete(pointerId);
     if (target?.hasPointerCapture(pointerId)) target.releasePointerCapture(pointerId);
     if (action === "move") centerKnob();
-    if (action === "look") lookPosition = null;
+    lookPositions.delete(pointerId);
     updateButtons();
   }
 
@@ -144,14 +145,15 @@ export function buildTouchControls(callbacks: TouchCallbacks) {
   canvas.addEventListener("pointerdown", (event) => {
     if (event.pointerType === "mouse" || !eligible(event) || !input.begin("look", event.pointerId)) return;
     consume(event);
-    lookPosition = { x: event.clientX, y: event.clientY };
+    lookPositions.set(event.pointerId, { x: event.clientX, y: event.clientY });
     capture(canvas, event.pointerId);
   });
   canvas.addEventListener("pointermove", (event) => {
-    if (input.pointerFor("look") !== event.pointerId || !lookPosition) return;
+    const previous = lookPositions.get(event.pointerId);
+    if (input.pointerFor("look") !== event.pointerId || !previous) return;
     consume(event);
-    input.moveLook(event.pointerId, event.clientX - lookPosition.x, event.clientY - lookPosition.y);
-    lookPosition = { x: event.clientX, y: event.clientY };
+    input.moveLook(event.pointerId, event.clientX - previous.x, event.clientY - previous.y);
+    lookPositions.set(event.pointerId, { x: event.clientX, y: event.clientY });
   });
   attachRelease(canvas);
 
@@ -161,9 +163,21 @@ export function buildTouchControls(callbacks: TouchCallbacks) {
     button.addEventListener("pointerdown", (event) => {
       if (!eligible(event) || !input.begin(action, event.pointerId)) return;
       consume(event);
+      if (action === "fire") {
+        lookPositions.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      }
       capture(button, event.pointerId);
       updateButtons();
     });
+    if (action === "fire") {
+      button.addEventListener("pointermove", (event) => {
+        const previous = lookPositions.get(event.pointerId);
+        if (input.pointerFor("fire") !== event.pointerId || !previous) return;
+        consume(event);
+        input.moveLook(event.pointerId, event.clientX - previous.x, event.clientY - previous.y);
+        lookPositions.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      });
+    }
     attachRelease(button);
     button.addEventListener("keydown", (event) => {
       if (event.code !== "Space" && event.code !== "Enter") return;
@@ -182,6 +196,7 @@ export function buildTouchControls(callbacks: TouchCallbacks) {
 
   for (const [button, action] of [
     [flightButton, callbacks.toggleFlight],
+    [precisionButton, callbacks.togglePrecision],
     [element("touch-orbit"), callbacks.toggleOrbit],
     [element("touch-pause"), callbacks.pause],
   ] as const) {
@@ -219,8 +234,13 @@ export function buildTouchControls(callbacks: TouchCallbacks) {
       jumpButton.textContent = flight ? "Rise" : "Jump";
       jumpButton.setAttribute("aria-label", flight ? "Hold to rise" : "Jump");
       descendButton.hidden = !flight;
+      precisionButton.hidden = !flight;
       flightButton.setAttribute("aria-pressed", String(flight));
       flightButton.textContent = flight ? "Walk" : "Fly";
+    },
+    setPrecision(precision: boolean) {
+      precisionButton.setAttribute("aria-pressed", String(precision));
+      precisionButton.textContent = precision ? "Precision flight: on" : "Precision flight: off";
     },
     reset,
   };
