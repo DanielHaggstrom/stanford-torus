@@ -14,10 +14,12 @@ remains the fallback. See [MDN's orientation lock documentation](https://develop
 The left stick provides analog movement; dragging the world changes the view.
 Continuing to move builds speed without a Sprint button: walking ramps from
 4 to 10 m/s and flight from 14 to 36 m/s. Jump becomes a held Rise button in
-flight, alongside Down. Fire keeps the same real-time tap and charge timing,
+flight, above Down. Fire keeps the same real-time tap and charge timing,
 and dragging the Fire button aims while charging. Two thumbs can move, aim,
 and fire together. Systems contains probe controls, Fullscreen, Reset, and a
 flight-only Precision toggle for close inspection at 1.5–3 m/s.
+Firing uses the existing charge meter, sound, recoil, and probe count for feedback;
+there is no launch notification over the view.
 Orbit has a Return button and a collapsible map; its camera supports dragging
 and pinching through Three.js OrbitControls.
 

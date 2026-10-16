@@ -16,9 +16,13 @@ export interface AxisStructureHandle {
 }
 const Y = new THREE.Vector3(0, 1, 0);
 const Z = new THREE.Vector3(0, 0, 1);
-const WING_SPAN = 56;
-const WING_WIDTH = 22;
-const WING_ROWS = [-142, -103, -64, 64, 103, 142];
+const WING_SPAN = 76;
+const WING_WIDTH = 28;
+const WING_CENTER_X = 50;
+const WING_ROWS = [-222, -184, -146, -108, -70, 70, 108, 146, 184, 222];
+const SPINE_START = 32;
+const SPINE_END = 250;
+const SPINE_BAYS = 20;
 
 function box(x: number, y: number, z: number, sx: number, sy: number, sz: number): Part {
   return { matrix: new THREE.Matrix4().compose(
@@ -77,7 +81,7 @@ function panelMaterial(kind: "solar" | "radiator"): THREE.MeshStandardMaterial {
       .replace("#include <common>", "#include <common>\nvarying vec2 vPanelPosition;")
       .replace("#include <color_fragment>", solar ? `
         #include <color_fragment>
-        vec2 cell = (vPanelPosition + vec2(26.95, 10.075)) / vec2(3.85, 4.03);
+        vec2 cell = (vPanelPosition + vec2(${(WING_SPAN - 1.2) / 2}, ${(WING_WIDTH - 1.2) / 2})) / vec2(3.85, 4.03);
         vec2 footprint = max(fwidth(cell), vec2(0.00001));
         vec2 edgeDistance = min(fract(cell), 1.0 - fract(cell));
         vec2 interior = smoothstep(vec2(0.018) - footprint, vec2(0.018) + footprint, edgeDistance);
@@ -155,15 +159,15 @@ export function buildAxisStructure(parent: THREE.Group, materials: AxisMaterials
   for (const side of [-1, 1]) {
     const shoulder = mesh(new THREE.CylinderGeometry(side > 0 ? 4.4 : 10.8, side > 0 ? 10.8 : 4.4, 8, 24), materials.hub, "Hub service shoulder");
     shoulder.position.y = side * 27.5;
-    const conduit = mesh(new THREE.CylinderGeometry(2.65, 2.65, 136, 12), materials.hub, "Axial service conduit");
-    conduit.position.y = side * 101;
+    const conduit = mesh(new THREE.CylinderGeometry(2.65, 2.65, SPINE_END - SPINE_START, 12), materials.hub, "Axial service conduit");
+    conduit.position.y = side * (SPINE_START + SPINE_END) / 2;
     for (let corner = 0; corner < 4; corner++) {
       const x = corner < 2 ? -4.6 : 4.6;
       const z = corner % 2 === 0 ? -4.6 : 4.6;
-      longerons.push(strut(new THREE.Vector3(x, side * 32, z), new THREE.Vector3(x, side * 168, z), 0.4));
-      for (let bay = 0; bay < 12; bay++) {
-        const y = side * (32 + bay * 136 / 12);
-        const nextY = side * (32 + (bay + 1) * 136 / 12);
+      longerons.push(strut(new THREE.Vector3(x, side * SPINE_START, z), new THREE.Vector3(x, side * SPINE_END, z), 0.4));
+      for (let bay = 0; bay < SPINE_BAYS; bay++) {
+        const y = side * (SPINE_START + bay * (SPINE_END - SPINE_START) / SPINE_BAYS);
+        const nextY = side * (SPINE_START + (bay + 1) * (SPINE_END - SPINE_START) / SPINE_BAYS);
         const nextX = corner === 0 || corner === 3 ? -x : x;
         const nextZ = corner === 0 || corner === 3 ? z : -z;
         braces.push(strut(new THREE.Vector3(x, y, z), new THREE.Vector3(nextX, y, nextZ), 0.18));
@@ -173,13 +177,13 @@ export function buildAxisStructure(parent: THREE.Group, materials: AxisMaterials
     }
     // Docking ports terminate the spine, beyond the thermal array wings.
     const docking = mesh(new THREE.CylinderGeometry(3.8, 3.8, 3.5, 20), materials.structure, "Axial docking collar");
-    docking.position.y = side * 169.5;
+    docking.position.y = side * (SPINE_END + 1.5);
     const hatch = mesh(new THREE.CylinderGeometry(3.2, 3.2, 0.15, 20), materials.glass, "Docking hatch");
-    hatch.position.y = side * 171.3;
+    hatch.position.y = side * (SPINE_END + 3.3);
     for (const corner of [-1, 1]) {
-      longerons.push(strut(new THREE.Vector3(corner * 4.6, side * 156, 4.6), new THREE.Vector3(corner * 9.5, side * 176, 4.6), 0.14));
-      braces.push(strut(new THREE.Vector3(corner * 8.5, side * 172, 4.6), new THREE.Vector3(corner * 11.5, side * 172, 4.6), 0.1));
-      lights.push(box(corner * 9.5, side * 176, 4.6, 0.4, 0.65, 0.4));
+      longerons.push(strut(new THREE.Vector3(corner * 4.6, side * (SPINE_END - 12), 4.6), new THREE.Vector3(corner * 9.5, side * (SPINE_END + 8), 4.6), 0.14));
+      braces.push(strut(new THREE.Vector3(corner * 8.5, side * (SPINE_END + 4), 4.6), new THREE.Vector3(corner * 11.5, side * (SPINE_END + 4), 4.6), 0.1));
+      lights.push(box(corner * 9.5, side * (SPINE_END + 8), 4.6, 0.4, 0.65, 0.4));
     }
     for (let hatchIndex = 0; hatchIndex < 8; hatchIndex++) {
       const angle = hatchIndex / 8 * Math.PI * 2;
@@ -191,7 +195,7 @@ export function buildAxisStructure(parent: THREE.Group, materials: AxisMaterials
     }
   }
   for (const y of WING_ROWS) {
-    longerons.push(strut(new THREE.Vector3(-40, y, 0), new THREE.Vector3(40, y, 0), 0.6));
+    longerons.push(strut(new THREE.Vector3(-WING_CENTER_X, y, 0), new THREE.Vector3(WING_CENTER_X, y, 0), 0.6));
     for (const side of [-1, 1]) {
       braces.push(strut(new THREE.Vector3(side * 4.6, y - 6, 4.6), new THREE.Vector3(side * 12, y, 0), 0.23));
       braces.push(strut(new THREE.Vector3(side * 4.6, y + 6, -4.6), new THREE.Vector3(side * 12, y, 0), 0.23));
@@ -227,25 +231,29 @@ export function buildAxisStructure(parent: THREE.Group, materials: AxisMaterials
   const solar = panelMaterial("solar");
   const radiator = panelMaterial("radiator");
   const edge = new THREE.MeshStandardMaterial({ color: "#899a9f", roughness: 0.42, metalness: 0.7 });
-  const panelBases: Part[] = WING_ROWS.flatMap((y) => [-1, 1].map((side) => box(side * 40, y, 0, 1, 1, 1)));
+  const panelBases: Part[] = WING_ROWS.flatMap((y) => [-1, 1].map((side) => box(side * WING_CENTER_X, y, 0, 1, 1, 1)));
   const wingMeshes: THREE.InstancedMesh[] = [];
   const wing = (geometry: THREE.BufferGeometry, material: THREE.Material, name: string) => {
     const object = instances(geometry, material, panelBases, name);
     object.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     // A wing can tilt through 90 degrees; its rest-pose bounds are insufficient.
-    object.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 177);
+    const hingeRadius = Math.hypot(WING_WIDTH / 2, 0.325);
+    object.boundingSphere = new THREE.Sphere(new THREE.Vector3(), Math.hypot(
+      WING_CENTER_X + WING_SPAN / 2,
+      Math.max(...WING_ROWS.map(Math.abs)) + hingeRadius,
+    ) + 1);
     wingMeshes.push(object);
     return object;
   };
   // The perimeter closes the two skins. A solid box behind them would compete
   // for the same depth-buffer values when viewed from the habitat.
   const frameParts = [
-    box(0, -10.7, 0, WING_SPAN, 0.6, 0.65), box(0, 10.7, 0, WING_SPAN, 0.6, 0.65),
-    box(-27.7, 0, 0, 0.6, WING_WIDTH, 0.65), box(27.7, 0, 0, 0.6, WING_WIDTH, 0.65),
+    box(0, -(WING_WIDTH / 2 - 0.3), 0, WING_SPAN, 0.6, 0.65), box(0, WING_WIDTH / 2 - 0.3, 0, WING_SPAN, 0.6, 0.65),
+    box(-(WING_SPAN / 2 - 0.3), 0, 0, 0.6, WING_WIDTH, 0.65), box(WING_SPAN / 2 - 0.3, 0, 0, 0.6, WING_WIDTH, 0.65),
   ];
   wing(boxDetails(frameParts), edge, "Solar-radiator wing substrates");
-  wing(new THREE.PlaneGeometry(54.8, 20.8).translate(0, 0, 0.2), solar, "Sun-facing solar cells");
-  const reverse = new THREE.PlaneGeometry(54.8, 20.8).rotateY(Math.PI).translate(0, 0, -0.2);
+  wing(new THREE.PlaneGeometry(WING_SPAN - 1.2, WING_WIDTH - 1.2).translate(0, 0, 0.2), solar, "Sun-facing solar cells");
+  const reverse = new THREE.PlaneGeometry(WING_SPAN - 1.2, WING_WIDTH - 1.2).rotateY(Math.PI).translate(0, 0, -0.2);
   wing(reverse, radiator, "Shaded radiator faces");
 
   const hinge = new THREE.Matrix4();

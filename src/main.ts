@@ -964,9 +964,6 @@ function launch(speed = TAP_LAUNCH_SPEED) {
     stopped: false,
   });
   updateLauncherUI();
-  notice(
-    `Probe launched at ${Math.round(speed)} m/s · ${probes.length} / ${MAX_PROBES} probes`,
-  );
 }
 
 function simulatePlayer(dt: number, simTime: number) {

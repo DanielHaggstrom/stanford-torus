@@ -5,6 +5,10 @@ the rotating spoke collars to the axis, which extends beyond both sides of the
 ring and carries paired panel wings, docking equipment, antennae, and service
 booms. Its orientation is independent of the ring's roughly 29-second spin.
 
+Twenty wings form five paired rows on each end of the axis. Each wing spans
+76 × 28 m, with space between rows throughout its full tilt range. The service
+spine extends 250 m in either direction, with docking ports beyond the array.
+
 Each wing has a blue solar-cell face and an opaque radiator back. The axis can
 turn about its length, and the wings can tilt on their hinges. In sunlight these
 two motions point the solar faces directly toward the same Sun used by the sky

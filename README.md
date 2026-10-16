@@ -7,7 +7,7 @@ probes to see how trajectories curve in a rotating reference frame.
 [Build checks](https://github.com/DanielHaggstrom/stanford-torus/actions) ·
 [MIT license](LICENSE)
 
-**Version 0.8.0** · Keyboard, mouse, or touch · WebGL 2
+**Version 0.9.0** · Keyboard, mouse, or touch · WebGL 2
 
 ## Playing
 
@@ -71,12 +71,13 @@ outside the enclosure, while paused, or in orbit view.
 ## What's included
 
 - Six districts with procedural buildings, trees, farms, water, and static residents.
+- A research laboratory, civic hall, and medical centre with distinct facades and signs.
 - Two monorail lines, six raised stations, and open carts you can walk into.
 - Walking, jumping, stabilized flight, and a visible first-person body and launcher.
 - Solid buildings, trees, and props; rooftop landings and wall sliding.
 - Rotating-frame ballistics and matching trajectory previews against scenery.
 - Procedural sound, a framed glass enclosure, pressure hull, trusses, and docking hub.
-- An independent central axis with tilting solar/radiator wings and antennae.
+- An independent central axis with 20 large tilting solar/radiator wings and antennae.
 - Earth, Moon, Sun, eclipses, adjustable time, and an inertial exterior view with an orbit map.
 
 This stylized prototype uses a cylindrical deck and simplified scenery collisions.

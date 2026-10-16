@@ -53,21 +53,52 @@ test("the complete axis holds inertial attitude throughout eclipse while its par
   }
 });
 
-test("paired wings remain outside the enclosure and use shared instanced geometry", () => {
+test("twenty enlarged wings share geometry and clear the enclosure through their full tilt", () => {
   const { parent, axis } = fixture();
   axis.update(0);
   parent.updateMatrixWorld(true);
   const panels = parent.getObjectByName("Solar-radiator wing substrates");
   assert.ok(panels instanceof THREE.InstancedMesh);
-  assert.equal(panels.count, 12);
+  assert.equal(panels.count, 20);
   const matrix = new THREE.Matrix4();
   const box = new THREE.Box3();
   panels.geometry.computeBoundingBox();
-  for (let index = 0; index < panels.count; index++) {
-    panels.getMatrixAt(index, matrix);
-    box.copy(panels.geometry.boundingBox!).applyMatrix4(matrix);
-    assert.ok(box.min.y > 24 || box.max.y < -24);
+  assert.ok(panels.geometry.boundingBox!.getSize(new THREE.Vector3()).x >= 76);
+  assert.ok(panels.geometry.boundingBox!.getSize(new THREE.Vector3()).y >= 28);
+  const hinge = new THREE.Matrix4();
+  const position = new THREE.Vector3();
+  for (const tilt of [-Math.PI / 2, -Math.PI / 4, 0, Math.PI / 4, Math.PI / 2]) {
+    hinge.makeRotationX(tilt);
+    const positiveRows: THREE.Box3[] = [];
+    for (let index = 0; index < panels.count; index++) {
+      panels.getMatrixAt(index, matrix);
+      position.setFromMatrixPosition(matrix);
+      // Exercise the entire mechanical hinge range, beyond today's Sun angle.
+      matrix.makeTranslation(position.x, position.y, position.z).multiply(hinge);
+      box.copy(panels.geometry.boundingBox!).applyMatrix4(matrix);
+      assert.ok(box.min.y > 35 || box.max.y < -35);
+      assert.ok(box.min.x > 11 || box.max.x < -11);
+      if (position.x > 0 && position.y > 0) positiveRows.push(box.clone());
+      for (const x of [box.min.x, box.max.x]) {
+        for (const y of [box.min.y, box.max.y]) {
+          for (const z of [box.min.z, box.max.z]) {
+            assert.ok(panels.boundingSphere!.containsPoint(new THREE.Vector3(x, y, z)));
+          }
+        }
+      }
+    }
+    positiveRows.sort((a, b) => a.min.y - b.min.y);
+    assert.equal(positiveRows.length, 5);
+    for (let row = 1; row < positiveRows.length; row++) {
+      assert.ok(positiveRows[row].min.y - positiveRows[row - 1].max.y > 9.9);
+    }
   }
   const bounds = new THREE.Box3().setFromObject(axis.root);
-  assert.ok(bounds.min.y < -175 && bounds.max.y > 175);
+  assert.ok(bounds.min.y < -258 && bounds.max.y > 258);
+  const collars: number[] = [];
+  axis.root.traverse((object) => {
+    if (object.name === "Axial docking collar") collars.push(Math.abs(object.position.y));
+  });
+  assert.equal(collars.length, 2);
+  assert.ok(collars.every((y) => y > 245));
 });

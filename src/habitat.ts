@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { buildTramSystem } from "./trams.ts";
 import { stationSupportHeight } from "./tram-physics.ts";
 import { buildHabitatStructure } from "./habitat-structure.ts";
+import { CIVIC_SITES, civicSiteAt, createCivicParts } from "./civic-buildings.ts";
 import type { StaticCollider } from "./scenery-collision.ts";
 
 /** Metres, in the habitat's co-rotating frame. The spin axis is world Y. */
@@ -30,7 +31,7 @@ export interface HabitatHandle {
   dispose: () => void;
 }
 
-type Instance = { matrix: THREE.Matrix4; color?: THREE.ColorRepresentation };
+type Instance = { matrix: THREE.Matrix4; color?: THREE.ColorRepresentation; collisionKind?: string | null };
 const TAU = Math.PI * 2;
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const LOCAL_FORWARD = new THREE.Vector3(0, -1, 0);
@@ -263,7 +264,8 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
     const color = new THREE.Color();
     data.forEach((instance, i) => {
       result.setMatrixAt(i, instance.matrix);
-      if (collisionKind) addCollider(geometry, instance.matrix, collisionKind);
+      const kind = instance.collisionKind === undefined ? collisionKind : instance.collisionKind;
+      if (kind) addCollider(geometry, instance.matrix, kind);
       if (instance.color !== undefined)
         result.setColorAt(i, color.set(instance.color));
     });
@@ -683,7 +685,10 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
           side * (5.65 + random() * 0.25),
           district === 4 ? 1.17 : 1,
         );
-      if (i % 3 !== 0) plantTree(angle + 0.041, side * (19.2 + random()), 0.8);
+      const civicSite = civicSiteAt(i, side);
+      if (i % 3 !== 0 && !civicSite)
+        plantTree(angle + 0.041, side * (19.2 + random()), 0.8);
+      if (civicSite) continue;
 
       // Farming and water districts open into gardens; the other districts
       // alternate compact terraces and taller pale apartment buildings.
@@ -1170,6 +1175,25 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
     halo.matrixAutoUpdate = false;
     halo.matrix.copy(floorMatrix(district.angle + 0.052, sculptureAcross, 2.3));
   }
+
+  // Public landmarks share the same draw batches and collision transforms as
+  // the surrounding town. Their reserved lots stay clear of random housing.
+  const civicCollections = { body: boxes, trim: trims, glass, marking: dashes };
+  for (const part of createCivicParts()) {
+    civicCollections[part.finish].push({
+      matrix: floorMatrix(
+        part.angle,
+        part.across,
+        part.height,
+        new THREE.Vector3(part.width, part.tall, part.depth),
+        part.tangentOffset,
+      ),
+      color: part.color,
+      collisionKind: part.collisionKind ?? null,
+    });
+  }
+  buildingCount += CIVIC_SITES.length;
+  root.userData.civicBuildings = CIVIC_SITES.map(({ kind, name, lot, side }) => ({ kind, name, lot, side }));
 
   instances(boxGeometry, materials.body, boxes, "building");
   instances(boxGeometry, materials.glass, glass);
