@@ -3,15 +3,15 @@ import test from "node:test";
 import { getRenderBudget } from "../src/render-quality.ts";
 
 test("automatic desktop and full quality preserve the desktop rendering budget", () => {
-  assert.deepEqual(getRenderBudget("auto", false, 2), { pixelRatio: 1.75 });
-  assert.deepEqual(getRenderBudget("full", false, 2), { pixelRatio: 1.75 });
-  assert.deepEqual(getRenderBudget("full", true, 2), { pixelRatio: 1.75 });
+  assert.deepEqual(getRenderBudget("auto", false, 2), { pixelRatio: 1.75, shadows: true });
+  assert.deepEqual(getRenderBudget("full", false, 2), { pixelRatio: 1.75, shadows: true });
+  assert.deepEqual(getRenderBudget("full", true, 2), { pixelRatio: 1.75, shadows: true });
 });
 
 test("touch auto and explicit balanced quality reduce only the rendering budget", () => {
-  assert.deepEqual(getRenderBudget("auto", true, 3), { pixelRatio: 1 });
-  assert.deepEqual(getRenderBudget("balanced", false, 2), { pixelRatio: 1 });
-  assert.deepEqual(getRenderBudget("balanced", true, 2), { pixelRatio: 1 });
+  assert.deepEqual(getRenderBudget("auto", true, 3), { pixelRatio: 1, shadows: false });
+  assert.deepEqual(getRenderBudget("balanced", false, 2), { pixelRatio: 1, shadows: false });
+  assert.deepEqual(getRenderBudget("balanced", true, 2), { pixelRatio: 1, shadows: false });
 });
 
 test("low device pixel ratios are never scaled up", () => {
@@ -22,7 +22,7 @@ test("low device pixel ratios are never scaled up", () => {
 
 test("invalid device pixel ratios use a finite positive fallback", () => {
   for (const ratio of [0, -1, Number.NaN, Infinity, -Infinity]) {
-    assert.deepEqual(getRenderBudget("auto", false, ratio), { pixelRatio: 1 });
-    assert.deepEqual(getRenderBudget("auto", true, ratio), { pixelRatio: 1 });
+    assert.deepEqual(getRenderBudget("auto", false, ratio), { pixelRatio: 1, shadows: true });
+    assert.deepEqual(getRenderBudget("auto", true, ratio), { pixelRatio: 1, shadows: false });
   }
 });

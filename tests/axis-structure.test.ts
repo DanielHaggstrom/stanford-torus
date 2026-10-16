@@ -53,7 +53,7 @@ test("the complete axis holds inertial attitude throughout eclipse while its par
   }
 });
 
-test("twenty enlarged wings share geometry and clear the enclosure through their full tilt", () => {
+test("all twenty enlarged wings occupy one end and clear the enclosure through their full tilt", () => {
   const { parent, axis } = fixture();
   axis.update(0);
   parent.updateMatrixWorld(true);
@@ -76,7 +76,7 @@ test("twenty enlarged wings share geometry and clear the enclosure through their
       // Exercise the entire mechanical hinge range, beyond today's Sun angle.
       matrix.makeTranslation(position.x, position.y, position.z).multiply(hinge);
       box.copy(panels.geometry.boundingBox!).applyMatrix4(matrix);
-      assert.ok(box.min.y > 35 || box.max.y < -35);
+      assert.ok(box.min.y > 35);
       assert.ok(box.min.x > 11 || box.max.x < -11);
       if (position.x > 0 && position.y > 0) positiveRows.push(box.clone());
       for (const x of [box.min.x, box.max.x]) {
@@ -88,17 +88,59 @@ test("twenty enlarged wings share geometry and clear the enclosure through their
       }
     }
     positiveRows.sort((a, b) => a.min.y - b.min.y);
-    assert.equal(positiveRows.length, 5);
+    assert.equal(positiveRows.length, 10);
     for (let row = 1; row < positiveRows.length; row++) {
       assert.ok(positiveRows[row].min.y - positiveRows[row - 1].max.y > 9.9);
     }
   }
   const bounds = new THREE.Box3().setFromObject(axis.root);
-  assert.ok(bounds.min.y < -258 && bounds.max.y > 258);
-  const collars: number[] = [];
-  axis.root.traverse((object) => {
-    if (object.name === "Axial docking collar") collars.push(Math.abs(object.position.y));
-  });
-  assert.equal(collars.length, 2);
-  assert.ok(collars.every((y) => y > 245));
+  assert.ok(bounds.min.y < -178 && bounds.max.y > 444);
+  assert.ok(bounds.min.y > -180 && bounds.max.y < 450);
+});
+
+test("orbital facility modules and pressure locks are closed at both ends", () => {
+  const { parent } = fixture();
+  parent.updateMatrixWorld(true);
+  for (const name of ["Closed pressure-vessel modules", "Airlock pressure chambers", "Facility docking collars", "Closed airlock and docking hatches"]) {
+    const object = parent.getObjectByName(name);
+    assert.ok(object instanceof THREE.InstancedMesh);
+    assert.equal((object.material as THREE.Material).transparent, false);
+    const matrix = new THREE.Matrix4();
+    const ray = new THREE.Raycaster();
+    for (let instance = 0; instance < object.count; instance++) {
+      object.getMatrixAt(instance, matrix);
+      matrix.premultiply(object.matrixWorld);
+      for (const sign of [-1, 1]) {
+        // A slight offset avoids coinciding with a lathe's pole vertex.
+        const origin = new THREE.Vector3(0.05, sign * 0.75, 0).applyMatrix4(matrix);
+        const direction = new THREE.Vector3(0, -sign, 0).transformDirection(matrix);
+        ray.set(origin, direction);
+        assert.ok(ray.intersectObject(object).some((hit) => hit.instanceId === instance), `${name} ${instance} end ${sign} is open`);
+      }
+    }
+  }
+});
+
+test("facility docking ports, visible closed hatches and antennae occupy the opposite end", () => {
+  const { parent } = fixture();
+  parent.updateMatrixWorld(true);
+  const facility = parent.getObjectByName("Pressurized orbital facility");
+  assert.ok(facility instanceof THREE.Group);
+  const hatches = facility.getObjectByName("Closed airlock and docking hatches");
+  const airlocks = facility.getObjectByName("Airlock pressure chambers");
+  const docking = facility.getObjectByName("Facility docking collars");
+  assert.ok(hatches instanceof THREE.InstancedMesh && hatches.count === 6);
+  assert.ok(airlocks instanceof THREE.InstancedMesh && airlocks.count === 4);
+  assert.ok(docking instanceof THREE.InstancedMesh && docking.count === 2);
+  assert.ok(facility.getObjectByName("Pressure-hatch latch bars"));
+  assert.ok(facility.getObjectByName("Pressure-lock flange rings"));
+  for (const name of ["Facility docking collars", "Closed airlock and docking hatches", "Facility antenna masts and exterior trusses", "Communications dishes", "Dish feeds and mounts"]) {
+    const object = parent.getObjectByName(name);
+    assert.ok(object);
+    const bounds = new THREE.Box3().setFromObject(object);
+    assert.ok(bounds.max.y < -23, `${name} is on the array end`);
+  }
+  const bounds = new THREE.Box3().setFromObject(facility);
+  assert.ok(bounds.min.y < -178 && bounds.max.y <= -23);
+  assert.ok(bounds.getSize(new THREE.Vector3()).x > 50);
 });

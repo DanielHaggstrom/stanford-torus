@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { ANGULAR_SPEED } from "./physics.ts";
 import { getAxisPose } from "./axis-tracking.ts";
+import { buildAxisFacility } from "./axis-facility.ts";
 
 type AxisMaterials = {
   structure: THREE.Material;
@@ -19,10 +20,10 @@ const Z = new THREE.Vector3(0, 0, 1);
 const WING_SPAN = 76;
 const WING_WIDTH = 28;
 const WING_CENTER_X = 50;
-const WING_ROWS = [-222, -184, -146, -108, -70, 70, 108, 146, 184, 222];
+const WING_ROWS = [70, 108, 146, 184, 222, 260, 298, 336, 374, 412];
 const SPINE_START = 32;
-const SPINE_END = 250;
-const SPINE_BAYS = 20;
+const SPINE_END = 444;
+const SPINE_BAYS = 36;
 
 function box(x: number, y: number, z: number, sx: number, sy: number, sz: number): Part {
   return { matrix: new THREE.Matrix4().compose(
@@ -154,46 +155,26 @@ export function buildAxisStructure(parent: THREE.Group, materials: AxisMaterials
   const longerons: Part[] = [];
   const braces: Part[] = [];
   const joints: Part[] = [];
-  const ports: Part[] = [];
-  const lights: Part[] = [];
-  for (const side of [-1, 1]) {
-    const shoulder = mesh(new THREE.CylinderGeometry(side > 0 ? 4.4 : 10.8, side > 0 ? 10.8 : 4.4, 8, 24), materials.hub, "Hub service shoulder");
-    shoulder.position.y = side * 27.5;
-    const conduit = mesh(new THREE.CylinderGeometry(2.65, 2.65, SPINE_END - SPINE_START, 12), materials.hub, "Axial service conduit");
-    conduit.position.y = side * (SPINE_START + SPINE_END) / 2;
-    for (let corner = 0; corner < 4; corner++) {
-      const x = corner < 2 ? -4.6 : 4.6;
-      const z = corner % 2 === 0 ? -4.6 : 4.6;
-      longerons.push(strut(new THREE.Vector3(x, side * SPINE_START, z), new THREE.Vector3(x, side * SPINE_END, z), 0.4));
-      for (let bay = 0; bay < SPINE_BAYS; bay++) {
-        const y = side * (SPINE_START + bay * (SPINE_END - SPINE_START) / SPINE_BAYS);
-        const nextY = side * (SPINE_START + (bay + 1) * (SPINE_END - SPINE_START) / SPINE_BAYS);
-        const nextX = corner === 0 || corner === 3 ? -x : x;
-        const nextZ = corner === 0 || corner === 3 ? z : -z;
-        braces.push(strut(new THREE.Vector3(x, y, z), new THREE.Vector3(nextX, y, nextZ), 0.18));
-        braces.push(strut(new THREE.Vector3(x, y, z), new THREE.Vector3(nextX, nextY, nextZ), 0.13));
-        if (bay % 3 === 0) joints.push(box(x, y, z, 0.8, 0.8, 0.8));
-      }
-    }
-    // Docking ports terminate the spine, beyond the thermal array wings.
-    const docking = mesh(new THREE.CylinderGeometry(3.8, 3.8, 3.5, 20), materials.structure, "Axial docking collar");
-    docking.position.y = side * (SPINE_END + 1.5);
-    const hatch = mesh(new THREE.CylinderGeometry(3.2, 3.2, 0.15, 20), materials.glass, "Docking hatch");
-    hatch.position.y = side * (SPINE_END + 3.3);
-    for (const corner of [-1, 1]) {
-      longerons.push(strut(new THREE.Vector3(corner * 4.6, side * (SPINE_END - 12), 4.6), new THREE.Vector3(corner * 9.5, side * (SPINE_END + 8), 4.6), 0.14));
-      braces.push(strut(new THREE.Vector3(corner * 8.5, side * (SPINE_END + 4), 4.6), new THREE.Vector3(corner * 11.5, side * (SPINE_END + 4), 4.6), 0.1));
-      lights.push(box(corner * 9.5, side * (SPINE_END + 8), 4.6, 0.4, 0.65, 0.4));
-    }
-    for (let hatchIndex = 0; hatchIndex < 8; hatchIndex++) {
-      const angle = hatchIndex / 8 * Math.PI * 2;
-      const matrix = new THREE.Matrix4().compose(
-        new THREE.Vector3(Math.sin(angle) * 10.95, side * 14, Math.cos(angle) * 10.95),
-        new THREE.Quaternion().setFromAxisAngle(Y, angle), new THREE.Vector3(1.7, 3.1, 0.15),
-      );
-      ports.push({ matrix });
+  const shoulder = mesh(new THREE.CylinderGeometry(4.4, 10.8, 8, 24), materials.hub, "Array service shoulder");
+  shoulder.position.y = 27.5;
+  const conduit = mesh(new THREE.CylinderGeometry(2.65, 2.65, SPINE_END - SPINE_START, 12), materials.hub, "Array coolant and power conduit");
+  conduit.position.y = (SPINE_START + SPINE_END) / 2;
+  for (let corner = 0; corner < 4; corner++) {
+    const x = corner < 2 ? -4.6 : 4.6;
+    const z = corner % 2 === 0 ? -4.6 : 4.6;
+    longerons.push(strut(new THREE.Vector3(x, SPINE_START, z), new THREE.Vector3(x, SPINE_END, z), 0.4));
+    for (let bay = 0; bay < SPINE_BAYS; bay++) {
+      const y = SPINE_START + bay * (SPINE_END - SPINE_START) / SPINE_BAYS;
+      const nextY = SPINE_START + (bay + 1) * (SPINE_END - SPINE_START) / SPINE_BAYS;
+      const nextX = corner === 0 || corner === 3 ? -x : x;
+      const nextZ = corner === 0 || corner === 3 ? z : -z;
+      braces.push(strut(new THREE.Vector3(x, y, z), new THREE.Vector3(nextX, y, nextZ), 0.18));
+      braces.push(strut(new THREE.Vector3(x, y, z), new THREE.Vector3(nextX, nextY, nextZ), 0.13));
+      if (bay % 3 === 0) joints.push(box(x, y, z, 0.8, 0.8, 0.8));
     }
   }
+  const manifold = mesh(new THREE.CylinderGeometry(3.2, 3.2, 3, 16), materials.structure, "Closed array thermal manifold");
+  manifold.position.y = SPINE_END;
   for (const y of WING_ROWS) {
     longerons.push(strut(new THREE.Vector3(-WING_CENTER_X, y, 0), new THREE.Vector3(WING_CENTER_X, y, 0), 0.6));
     for (const side of [-1, 1]) {
@@ -203,21 +184,20 @@ export function buildAxisStructure(parent: THREE.Group, materials: AxisMaterials
     }
   }
   instances(cylinder, materials.structure, longerons, "Service-spine longerons and array axles");
-  instances(cylinder, materials.trim, braces, "Service-spine lattice and antenna supports");
+  instances(cylinder, materials.trim, braces, "Service-spine lattice");
   instances(cube, materials.hub, joints, "Array drive housings and truss nodes");
-  instances(cube, materials.glass, ports, "Service hub access hatches");
-  instances(cube, materials.cyan, lights, "Antenna tip lights");
+  buildAxisFacility(root, materials);
 
   const dishMaterial = new THREE.MeshStandardMaterial({ color: "#d9dfd8", roughness: 0.55, metalness: 0.45, side: THREE.DoubleSide });
   const dishParts: Part[] = [];
   const dishSupportParts: Part[] = [];
-  for (const side of [-1, 1]) {
+  for (const y of [-52, -132]) {
     for (const arm of [-1, 1]) {
-      const position = new THREE.Vector3(arm * 16, side * 43, 2);
+      const position = new THREE.Vector3(arm * 32, y, 2);
       const rotation = new THREE.Quaternion().setFromUnitVectors(Z, new THREE.Vector3(arm * 0.8, 0, 0.6));
       dishParts.push({ matrix: new THREE.Matrix4().compose(position, rotation, new THREE.Vector3(1, 1, 1)) });
       const toWorld = (point: THREE.Vector3) => point.applyQuaternion(rotation).add(position);
-      dishSupportParts.push(strut(new THREE.Vector3(arm * 4.6, side * 40, 0), position, 0.38));
+      dishSupportParts.push(strut(new THREE.Vector3(arm * 10, y + 3, 0), position, 0.38));
       for (let support = 0; support < 3; support++) {
         const angle = support / 3 * Math.PI * 2;
         dishSupportParts.push(strut(toWorld(new THREE.Vector3(3.2 * Math.cos(angle), 3.2 * Math.sin(angle), 1.05)), toWorld(new THREE.Vector3(0, 0, 2.7)), 0.09));

@@ -3,6 +3,9 @@ import { buildTramSystem } from "./trams.ts";
 import { stationSupportHeight } from "./tram-physics.ts";
 import { buildHabitatStructure } from "./habitat-structure.ts";
 import { CIVIC_SITES, civicSiteAt, createCivicParts } from "./civic-buildings.ts";
+import { buildDeckSurface } from "./deck-surface.ts";
+import { buildHabitatLighting } from "./habitat-lighting.ts";
+import { buildElevators, isElevatorLot } from "./elevators.ts";
 import type { StaticCollider } from "./scenery-collision.ts";
 
 /** Metres, in the habitat's co-rotating frame. The spin axis is world Y. */
@@ -22,6 +25,8 @@ export const HABITAT_DISTRICTS = [
 export interface HabitatLighting {
   sunDirection: { x: number; y: number; z: number };
   sunlight: number;
+  viewerPosition?: { x: number; y: number; z: number };
+  shadows?: boolean;
 }
 
 export interface HabitatHandle {
@@ -73,33 +78,21 @@ function floorMatrix(
   return rotation.scale(scale).setPosition(position);
 }
 
-function cylinderBand(
-  radius: number,
-  yMin: number,
-  yMax: number,
-  start = 0,
-  end = TAU,
-  segments = 384,
-): THREE.BufferGeometry {
-  const positions: number[] = [];
-  const normals: number[] = [];
-  const indices: number[] = [];
-  for (let i = 0; i <= segments; i++) {
-    const angle = start + ((end - start) * i) / segments;
-    const c = Math.cos(angle);
-    const s = Math.sin(angle);
-    positions.push(radius * c, yMin, radius * s, radius * c, yMax, radius * s);
-    normals.push(-c, 0, -s, -c, 0, -s);
-    if (i < segments) {
-      const j = i * 2;
-      indices.push(j, j + 2, j + 1, j + 1, j + 2, j + 3);
+/** Curved reservoir patches; the main deck itself is a single partitioned surface. */
+function cylinderBand(radius: number, yMin: number, yMax: number, start = 0, end = TAU, segments = 384) {
+  const positions: number[] = [], normals: number[] = [], indices: number[] = [];
+  for (let index = 0; index <= segments; index++) {
+    const angle = start + (end - start) * index / segments;
+    const cosine = Math.cos(angle), sine = Math.sin(angle);
+    positions.push(radius * cosine, yMin, radius * sine, radius * cosine, yMax, radius * sine);
+    normals.push(-cosine, 0, -sine, -cosine, 0, -sine);
+    if (index < segments) {
+      const base = index * 2;
+      indices.push(base, base + 2, base + 1, base + 1, base + 2, base + 3);
     }
   }
   const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute(
-    "position",
-    new THREE.Float32BufferAttribute(positions, 3),
-  );
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
   geometry.setAttribute("normal", new THREE.Float32BufferAttribute(normals, 3));
   geometry.setIndex(indices);
   return geometry;
@@ -174,6 +167,7 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
     body: standard("#e4e5d5"),
     trim: standard("#9eb4b2", { metalness: 0.3 }),
     glass: standard("#294b5b", {
+      polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1,
       roughness: 0.28,
       metalness: 0.45,
       emissive: "#173b49",
@@ -201,6 +195,7 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
     structure: standard("#a5bbba", { metalness: 0.55, roughness: 0.38 }),
     hub: standard("#e2e2d1", { roughness: 0.45, metalness: 0.38 }),
     water: standard("#67bfc2", {
+      polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1,
       metalness: 0.48,
       roughness: 0.18,
       emissive: "#133d42",
@@ -275,12 +270,6 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
     add(result);
     return result;
   };
-  const band = (
-    radius: number,
-    min: number,
-    max: number,
-    material: THREE.Material,
-  ) => mesh(cylinderBand(radius, min, max), material);
   const orbitRing = (
     radius: number,
     width: number,
@@ -293,25 +282,11 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
     return ring;
   };
 
-  const hemisphereLight = add(
-    new THREE.HemisphereLight("#d9f4ff", "#61735b", 2.1),
-  );
-  const ambientLight = add(new THREE.AmbientLight("#8cabb9", 0.6));
-  const sunLight = add(new THREE.DirectionalLight("#fff2cf", 2.35));
-  sunLight.position.set(350, 600, -400);
-
-  // A continuous inward-facing cylinder is the playable ground. Every strip has
-  // the same radius apart from tiny offsets to prevent overlapping surfaces.
-  band(HABITAT_RADIUS, -22, 22, materials.ground);
-  band(209.96, -21.7, -3.65, materials.grass);
-  band(209.96, 3.65, 21.7, materials.grass);
-  band(209.92, -3.4, 3.4, materials.path);
-  band(209.9, -3.5, -3.39, materials.cyan);
-  band(209.9, 3.39, 3.5, materials.cyan);
-  band(209.91, -12.7, -10.7, materials.terrace);
-  band(209.91, 10.7, 12.7, materials.terrace);
-  band(209.9, -21.9, -21.25, materials.path);
-  band(209.9, 21.25, 21.9, materials.path);
+  const lightRig = buildHabitatLighting(root);
+  // One colored surface avoids centimetre-separated layers fighting at 400 m.
+  const deck = mesh(buildDeckSurface(), standard("#ffffff", { vertexColors: true }));
+  deck.name = "Continuous deck surface";
+  deck.receiveShadow = deck.castShadow = true;
 
   const boxes: Instance[] = [];
   const glass: Instance[] = [];
@@ -686,9 +661,10 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
           district === 4 ? 1.17 : 1,
         );
       const civicSite = civicSiteAt(i, side);
-      if (i % 3 !== 0 && !civicSite)
+      const elevatorLot = isElevatorLot(i, side);
+      if (i % 3 !== 0 && !civicSite && !elevatorLot)
         plantTree(angle + 0.041, side * (19.2 + random()), 0.8);
-      if (civicSite) continue;
+      if (civicSite || elevatorLot) continue;
 
       // Farming and water districts open into gardens; the other districts
       // alternate compact terraces and taller pale apartment buildings.
@@ -1185,9 +1161,10 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
         part.angle,
         part.across,
         part.height,
-        new THREE.Vector3(part.width, part.tall, part.depth),
+        new THREE.Vector3(1, 1, 1),
         part.tangentOffset,
-      ),
+      ).multiply(new THREE.Matrix4().makeRotationZ(part.tilt ?? 0))
+        .scale(new THREE.Vector3(part.width, part.tall, part.depth)),
       color: part.color,
       collisionKind: part.collisionKind ?? null,
     });
@@ -1245,9 +1222,22 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
   }
 
   const structure = buildHabitatStructure(root, materials);
+  const elevators = buildElevators(root, addCollider);
 
   const trams = buildTramSystem(root, HABITAT_DISTRICTS);
   trams.update(0);
+  // Transparent glazing and hair-thin trusses do not cast noisy shadow pixels.
+  root.traverse((object) => {
+    if (!(object instanceof THREE.Mesh)) return;
+    const opaque = (Array.isArray(object.material) ? object.material : [object.material])
+      .every((material) => !material.transparent && !(material instanceof THREE.MeshBasicMaterial));
+    object.receiveShadow = opaque;
+    if (object instanceof THREE.InstancedMesh)
+      object.castShadow = opaque && object.geometry.type !== "CylinderGeometry";
+    // Bulky pressure bodies cast coherent shadows; thin lattice tubes stay excluded.
+    if (/bearing hub|transfer drum|pressure-vessel modules|transfer passages|pressure chambers|docking collars|closed.*hatches|pressure tubes|terminal housings/i.test(object.name))
+      object.castShadow = opaque;
+  });
   let disposed = false;
   return {
     root,
@@ -1256,16 +1246,10 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
       if (disposed) return;
       trams.update(elapsedSeconds);
       structure.update(elapsedSeconds);
+      elevators.update(elapsedSeconds);
       if (lighting) {
-        const daylight = THREE.MathUtils.clamp(lighting.sunlight, 0, 1);
-        sunLight.position
-          .copy(lighting.sunDirection)
-          .normalize()
-          .multiplyScalar(1000);
-        sunLight.intensity = 2.35 * daylight;
-        // The station's own lights keep its interior navigable during eclipse.
-        hemisphereLight.intensity = 0.75 + 1.35 * daylight;
-        ambientLight.intensity = 0.32 + 0.28 * daylight;
+        lightRig.update(lighting.sunDirection, lighting.sunlight,
+          lighting.viewerPosition ?? { x: HABITAT_RADIUS, y: 0, z: 0 }, lighting.shadows ?? false);
       }
       for (let i = 0; i < beacons.length; i++) {
         const beacon = beacons[i];
@@ -1286,6 +1270,7 @@ export function buildHabitat(scene: THREE.Scene): HabitatHandle {
       if (disposed) return;
       disposed = true;
       trams.dispose();
+      lightRig.dispose();
       const geometries = new Set<THREE.BufferGeometry>();
       const ownedMaterials = new Set<THREE.Material>(Object.values(materials));
       root.traverse((object) => {

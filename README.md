@@ -7,7 +7,7 @@ probes to see how trajectories curve in a rotating reference frame.
 [Build checks](https://github.com/DanielHaggstrom/stanford-torus/actions) ·
 [MIT license](LICENSE)
 
-**Version 0.9.0** · Keyboard, mouse, or touch · WebGL 2
+**Version 0.10.0** · Keyboard, mouse, or touch · WebGL 2
 
 ## Playing
 
@@ -71,19 +71,22 @@ outside the enclosure, while paused, or in orbit view.
 ## What's included
 
 - Six districts with procedural buildings, trees, farms, water, and static residents.
-- A research laboratory, civic hall, and medical centre with distinct facades and signs.
+- A futuristic research lab, civic hall, and medical centre with closed facades and small emblems.
 - Two monorail lines, six raised stations, and open carts you can walk into.
 - Walking, jumping, stabilized flight, and a visible first-person body and launcher.
 - Solid buildings, trees, and props; rooftop landings and wall sliding.
 - Rotating-frame ballistics and matching trajectory previews against scenery.
 - Procedural sound, a framed glass enclosure, pressure hull, trusses, and docking hub.
-- An independent central axis with 20 large tilting solar/radiator wings and antennae.
+- An independent axis with 20 tilting solar/radiator wings, a sealed orbital facility, and antennae.
+- Three enclosed spoke elevators, with animated travel and stop indicators.
+- Directional sunlight, warm habitat lights, and optional Sun shadows.
 - Earth, Moon, Sun, eclipses, adjustable time, and an inertial exterior view with an orbit map.
 
 This stylized prototype uses a cylindrical deck and simplified scenery collisions.
 Probes hit the enclosure; players can fly through it. The sky uses approximate
-circular orbits and a fixed opening alignment. Multiplayer, saved progress, and
-gamepad support are not implemented.
+circular orbits and a fixed opening alignment. Civic buildings, elevators, and
+the orbital facility have no accessible interiors. Lighting is approximate;
+multiplayer, saved progress, and gamepad support are not implemented.
 
 Exploration is limited to a sphere with a 750 m radius around the hub. A faint
 boundary appears as you approach it: players stay inside, and probes disappear

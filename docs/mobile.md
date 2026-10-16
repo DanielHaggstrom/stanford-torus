@@ -42,11 +42,12 @@ rules and jump grace/buffering are shared with desktop. Simulation speeds of
 5× and 10× also accelerate movement; the Time selector returns to 1×.
 
 Automatic graphics caps the drawing pixel ratio at 1 with touch controls.
-Desktop retains its cap of 1.75. Full restores that budget on touch; Balanced
-selects the lighter budget on either layout. The trajectory preview follows
+Desktop retains its cap of 1.75. Full restores that budget on touch and enables
+Sun shadows. Desktop Automatic also enables Sun shadows; Balanced and touch
+Automatic leave them off. These presets keep the same scenery and physics.
+The trajectory preview follows
 the current camera and launch state every rendered frame, with unchanged shots
-cached. Neither preset changes physics, simulation
-time, geography, or scenery. No new dependency or server runtime is required.
+cached. No new dependency or server runtime is required.
 
 ## Validation
 

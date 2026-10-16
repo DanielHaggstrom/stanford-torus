@@ -38,18 +38,31 @@ test("public landmarks register real walls and roofs against player and probe co
   }
 });
 
-test("all civic entrances allow an unobstructed walk from side path into the portico", () => {
+test("public approaches stay clear but every civic door stops entry", () => {
   for (const site of CIVIC_SITES) {
     const angle = civicSiteAngle(site);
     let previous = motion(atAngle(angle, site.side * 11.7));
-    const end = CIVIC_FRONT_ACROSS + 2.5;
-    for (let across = 11.75; across <= end; across += 0.05) {
+    for (let across = 11.75; across <= 12.7; across += 0.05) {
       const next = motion(atAngle(angle, site.side * across));
       const result = world.resolvePlayer(previous, next);
-      assert.equal(result.hit, false, `${site.name} entrance obstructed at ${across}`);
+      assert.equal(result.hit, false, `${site.name} approach obstructed at ${across}`);
       assert.ok(distance(result.state.position, next.position) < 1e-6);
       previous = next;
     }
+    const inside = motion(atAngle(angle, site.side * (CIVIC_FRONT_ACROSS + 2.5)));
+    const blocked = world.resolvePlayer(previous, inside);
+    assert.equal(blocked.hit, true, `${site.name} door must block entry`);
+    assert.ok(Math.abs(blocked.state.position.y) < CIVIC_FRONT_ACROSS);
+    assert.ok(distance(blocked.state.position, inside.position) > 2);
+
+    const eye = atAngle(angle, site.side * 12.0);
+    eye.x *= (FLOOR_RADIUS - 1.2) / FLOOR_RADIUS;
+    eye.z *= (FLOOR_RADIUS - 1.2) / FLOOR_RADIUS;
+    const shot = motion(eye, { x: 0, y: site.side * 40, z: 0 });
+    const impact = world.firstImpact(shot, 0.2, { angularSpeed: 0 });
+    assert.equal(impact?.collider?.kind, `civic ${site.kind} closed door`);
+    const live = world.advanceBallistic(shot, 0.2, { angularSpeed: 0 });
+    assert.ok(distance(live.state.position, impact!.position) < 1e-8);
   }
 });
 

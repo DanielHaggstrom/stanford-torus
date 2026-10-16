@@ -171,6 +171,8 @@ export function buildHabitatStructure(
     const radial = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
     const tangent = new THREE.Vector3(-Math.sin(angle), 0, Math.cos(angle));
     for (const side of [-1, 1]) {
+      // Three passenger shafts take these routes; do not cross them with old service tubes.
+      if (side < 0 && spoke % 2 === 0) continue;
       const point = (section: number, corner = -1) => {
         const f = section / 10;
         const value = radial.clone().multiplyScalar(12 + f * (FLOOR_RADIUS - 12));
@@ -209,6 +211,9 @@ export function buildHabitatStructure(
     ring(11.8, 0.65, y, materials.structure);
     ring(11.25, 0.14, y - Math.sign(y) * 0.85, materials.cyan);
   }
+  const transfer = mesh(new THREE.CylinderGeometry(11.2, 11.2, 5, 24), materials.hub);
+  transfer.name = "Rotating elevator transfer drum";
+  transfer.position.y = -24;
   const axis = buildAxisStructure(root, materials);
   root.userData.structureVersion = 3;
   return axis;

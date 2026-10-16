@@ -91,6 +91,8 @@ renderer.setSize(innerWidth, innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.12;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFShadowMap;
 const scene = new THREE.Scene();
 scene.background = null;
 function overviewFov(aspect: number) {
@@ -105,8 +107,8 @@ function overviewFov(aspect: number) {
 const camera = new THREE.PerspectiveCamera(
   overviewFov(innerWidth / innerHeight),
   innerWidth / innerHeight,
-  0.08,
-  6000,
+  0.18,
+  2000,
 );
 const habitat = buildHabitat(scene);
 const scenery = buildSceneryCollision(habitat.colliders);
@@ -136,9 +138,9 @@ let soundMuted = preferences.soundMuted;
 audio.setMuted(soundMuted);
 audio.setVolume(preferences.soundVolume);
 renderer.autoClear = false;
-const overviewPosition = new THREE.Vector3(600, 220, 300);
+const overviewPosition = new THREE.Vector3(620, 320, 330);
 const overviewUp = new THREE.Vector3(-0.26, 0.805, 0.53).normalize();
-const overviewTarget = new THREE.Vector3();
+const overviewTarget = new THREE.Vector3(0, 100, 0);
 camera.position.copy(overviewPosition);
 camera.up.copy(overviewUp);
 const controls = new OrbitControls(camera, canvas);
@@ -148,7 +150,7 @@ controls.maxDistance = 1100;
 controls.enablePan = false;
 controls.autoRotate = false;
 controls.enableDamping = false;
-controls.target.set(0, 0, 0);
+controls.target.copy(overviewTarget);
 controls.update();
 
 type View = "explore" | "orbit";
@@ -1492,7 +1494,11 @@ function frame(now: number) {
     camera,
     inertialView ? "inertial" : "habitat",
   );
-  habitat.update(elapsed, inertialView ? getOrbitState(elapsed) : orbit);
+  habitat.update(elapsed, {
+    ...(inertialView ? getOrbitState(elapsed) : orbit),
+    viewerPosition: player.position,
+    shadows: renderBudget.shadows,
+  });
   explorationShell.update(player.position, view === "explore");
   updateAudio(dt);
   const avatarSurfaceVelocity =
